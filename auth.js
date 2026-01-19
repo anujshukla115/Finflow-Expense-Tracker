@@ -92,3 +92,12 @@ router.post('/login', async (req, res) => {
 });
 
 module.exports = router;
+
+// Add this at the very end of auth.js
+console.log('Auth.js loaded successfully!');
+if (window.auth) {
+    console.log('Auth service initialized:', window.auth);
+} else {
+    console.error('Auth service failed to initialize');
+}
+
