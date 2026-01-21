@@ -550,4 +550,6 @@ window.addEventListener('beforeunload', () => {
 // Export for module usage if supported
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = AuthService;
+
 }
+window.auth = new AuthService();
