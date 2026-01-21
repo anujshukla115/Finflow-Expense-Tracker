@@ -1,103 +1,32 @@
-const express = require('express');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
 
-const router = express.Router();
+const authMiddleware = (req, res, next) => {
+    const authHeader = req.headers.authorization;
 
-/* =====================
-   REGISTER
-===================== */
-router.post('/register', async (req, res) => {
-    try {
-        const { name, email, password } = req.body;
-
-        if (!name || !email || !password) {
-            return res.status(400).json({ message: 'All fields are required' });
-        }
-
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-            return res.status(400).json({ message: 'User already exists' });
-        }
-
-        const user = await User.create({
-            name,
-            email,
-            password
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+            message: 'Authorization token missing'
         });
-
-        const token = jwt.sign(
-            { userId: user._id },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
-        );
-
-        res.status(201).json({
-            message: 'Registration successful',
-            token,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email
-            }
-        });
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Registration failed' });
     }
-});
 
-/* =====================
-   LOGIN
-===================== */
-router.post('/login', async (req, res) => {
+    const token = authHeader.split(' ')[1];
+
     try {
-        const { email, password } = req.body;
-
-        if (!email || !password) {
-            return res.status(400).json({ message: 'Email and password required' });
+        if (!process.env.JWT_SECRET) {
+            throw new Error('JWT_SECRET not configured');
         }
 
-        const user = await User.findOne({ email }).select('+password');
-        if (!user) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        const isMatch = await user.comparePassword(password);
-        if (!isMatch) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
+        // Attach userId to request (single source of truth)
+        req.userId = decoded.userId;
 
-        const token = jwt.sign(
-            { userId: user._id },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
-        );
-
-        res.json({
-            message: 'Login successful',
-            token,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email
-            }
-        });
-
+        next();
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: 'Login failed' });
+        return res.status(401).json({
+            message: 'Invalid or expired token'
+        });
     }
-});
+};
 
-module.exports = router;
-
-// Add this at the very end of auth.js
-console.log('Auth.js loaded successfully!');
-if (window.auth) {
-    console.log('Auth service initialized:', window.auth);
-} else {
-    console.error('Auth service failed to initialize');
-}
-
+module.exports = authMiddleware;
