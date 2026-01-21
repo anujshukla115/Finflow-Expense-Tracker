@@ -30,3 +30,6 @@ const authMiddleware = (req, res, next) => {
 };
 
 module.exports = authMiddleware;
+window.auth = new AuthService();
+
+
