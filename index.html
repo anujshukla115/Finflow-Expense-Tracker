@@ -3,6 +3,13 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <script>
+  const token = localStorage.getItem("token");
+  if (token) {
+    window.location.replace("./index.html");
+  }
+</script>
+
     <title>FinFlow | Login</title>
 
     <!-- CSS -->
@@ -415,6 +422,7 @@ document.querySelectorAll('.social-btn').forEach(btn => {
 </body>
 
 </html>
+
 
 
 
