@@ -1,27 +1,23 @@
-const API_URL = "https://finflow-expense-tracker-backend-production.up.railway.app";
+const API_URL = "https://finflow-expense-tracker-backend-production.up.railway.app/api";
 
-const auth = {
- async register(name, email, password) {
-  const res = await fetch(`${API_URL}/api/auth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email, password })
-  });
+window.auth = {
+  async login(email, password) {
+    const res = await fetch(`${API_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
 
-  const data = await res.json();
-  console.log("REGISTER RESPONSE:", data);
+    const data = await res.json();
 
-  if (!res.ok) {
-    throw new Error(data.message || "Registration failed");
-  }
+    if (!res.ok) throw new Error(data.message || "Login failed");
 
-  localStorage.setItem("token", data.token);
-  return data;
-}
-
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("user", JSON.stringify(data.user));
+  },
 
   async register(name, email, password) {
-    const res = await fetch(`${API_URL}/api/auth/register`, {
+    const res = await fetch(`${API_URL}/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, email, password })
@@ -29,14 +25,9 @@ const auth = {
 
     const data = await res.json();
 
-    if (!res.ok) {
-      throw new Error(data.message || "Registration failed");
-    }
+    if (!res.ok) throw new Error(data.message || "Register failed");
 
-    // ✅ THIS IS MISSING IN YOUR CODE
     localStorage.setItem("token", data.token);
-
-    return data;
+    localStorage.setItem("user", JSON.stringify(data.user));
   }
 };
-
