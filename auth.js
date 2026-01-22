@@ -1,6 +1,6 @@
 // auth.js (PRODUCTION READY FOR NETLIFY)
 
-const API_BASE = "https://YOUR-BACKEND-URL/api"; // 🔴 CHANGE THIS LATER
+const API_BASE = "https://finflow-expense-tracker-backend-production.up.railway.app/api"; // 🔴 CHANGE THIS LATER
 
 class AuthService {
   constructor() {
@@ -80,3 +80,4 @@ class AuthService {
 
 /* 🔴 VERY IMPORTANT */
 window.auth = new AuthService();
+
