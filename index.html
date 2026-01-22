@@ -348,11 +348,12 @@ loginForm.addEventListener('submit', async (e) => {
     document.getElementById('authLoadingOverlay').classList.remove('hidden');
     
     try {
-        await auth.login(loginEmail.value, loginPassword.value);
-        showAuthMessage('Login successful! Redirecting...', 'success');
-        setTimeout(() => {
-            window.location.href = './index.html';
-        }, 1000);
+       await auth.login(loginEmail.value, loginPassword.value);
+
+setTimeout(() => {
+  window.location.replace("./index.html");
+}, 500);
+
     } catch (err) {
         document.getElementById('authLoadingOverlay').classList.add('hidden');
         showAuthMessage(err.message, 'error');
@@ -414,6 +415,7 @@ document.querySelectorAll('.social-btn').forEach(btn => {
 </body>
 
 </html>
+
 
 
 
