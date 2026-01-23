@@ -1,33 +1,38 @@
-const API_URL = "https://finflow-expense-tracker-backend-production.up.railway.app/api";
+const auth = {
+  register: async (name, email, password) => {
+    const users = JSON.parse(localStorage.getItem("users")) || [];
 
-window.auth = {
-  async login(email, password) {
-    const res = await fetch(`${API_URL}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
-    });
+    if (users.find(u => u.email === email)) {
+      throw new Error("User already exists");
+    }
 
-    const data = await res.json();
+    const user = {
+      _id: "user-" + Date.now(),
+      name,
+      email,
+      password,
+      monthlyIncome: 0,
+      currency: "INR",
+      monthlyBudget: 0
+    };
 
-    if (!res.ok) throw new Error(data.message || "Login failed");
+    users.push(user);
+    localStorage.setItem("users", JSON.stringify(users));
 
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("user", JSON.stringify(data.user));
+    // auto login after register
+    localStorage.setItem("token", "local-token");
+    localStorage.setItem("userData", JSON.stringify(user));
   },
 
-  async register(name, email, password) {
-    const res = await fetch(`${API_URL}/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password })
-    });
+  login: async (email, password) => {
+    const users = JSON.parse(localStorage.getItem("users")) || [];
+    const user = users.find(u => u.email === email && u.password === password);
 
-    const data = await res.json();
+    if (!user) {
+      throw new Error("Invalid email or password");
+    }
 
-    if (!res.ok) throw new Error(data.message || "Register failed");
-
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("user", JSON.stringify(data.user));
+    localStorage.setItem("token", "local-token");
+    localStorage.setItem("userData", JSON.stringify(user));
   }
 };
