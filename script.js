@@ -105,16 +105,22 @@
 window.logout = function () {
     if (!confirm('Logout?')) return;
 
-    // ✅ remove ONLY session-related keys
+    // 🔴 Clear ONLY auth-related data
     localStorage.removeItem('finflow_token');
     localStorage.removeItem('finflow_user');
+    localStorage.removeItem('userData');
+    localStorage.removeItem('userId');
 
-    // ❌ DO NOT clear expenses or profile
-    // ❌ DO NOT localStorage.clear()
+    // 🔴 Clear auth runtime state
+    if (window.auth) {
+        window.auth.isLoggedIn = false;
+        window.auth.currentUser = null;
+    }
 
-    // ✅ Netlify-safe redirect
-    window.location.replace('index.html');
+    // 🔴 Hard redirect (no back, no reload loop)
+    window.location.href = 'index.html';
 };
+
 
 
 // ================= END AUTHENTICATION CHECK =================
@@ -3648,5 +3654,6 @@ function deleteAccount() {
         }
     }
 }
+
 
 
