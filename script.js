@@ -113,7 +113,7 @@ window.logout = function () {
     // ❌ DO NOT localStorage.clear()
 
     // ✅ Netlify-safe redirect
-    window.location.replace('/');
+    window.location.replace('index.html');
 };
 
 
@@ -3648,4 +3648,5 @@ function deleteAccount() {
         }
     }
 }
+
 
