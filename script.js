@@ -1,8 +1,6 @@
 // ================= COMPLETE EXPENSE TRACKER SCRIPT =================
 // UPDATED VERSION - Includes button visibility fix for light theme
-if (!window.auth.isLoggedIn()) {
-  window.location.href = "index.html";
-}
+
 if (window.auth.isLoggedIn()) {
   window.location.href = "app.html";
 }
@@ -3651,3 +3649,4 @@ function deleteAccount() {
     }
 
 }
+
