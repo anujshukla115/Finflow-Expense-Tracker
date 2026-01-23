@@ -1,38 +1,81 @@
-const auth = {
-  register: async (name, email, password) => {
-    const users = JSON.parse(localStorage.getItem("users")) || [];
+// ================= AUTH SYSTEM =================
+window.auth = (() => {
+    const USER_KEY = "finflow_user";
+    const SESSION_KEY = "finflow_session";
 
-    if (users.find(u => u.email === email)) {
-      throw new Error("User already exists");
+    function getUser() {
+        return JSON.parse(localStorage.getItem(USER_KEY));
     }
 
-    const user = {
-      _id: "user-" + Date.now(),
-      name,
-      email,
-      password,
-      monthlyIncome: 0,
-      currency: "INR",
-      monthlyBudget: 0
+    function getSession() {
+        return JSON.parse(localStorage.getItem(SESSION_KEY));
+    }
+
+    function isLoggedIn() {
+        return !!getSession();
+    }
+
+    function register({ name, email, password }) {
+        const user = {
+            id: "user_" + Date.now(),
+            name,
+            email,
+            password, // demo only (no hashing)
+            createdAt: new Date().toISOString(),
+            profile: {
+                currency: "INR",
+                monthlyIncome: 0,
+                monthlyBudget: 0
+            }
+        };
+
+        localStorage.setItem(USER_KEY, JSON.stringify(user));
+        localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: user.id }));
+
+        return user;
+    }
+
+    function login(email, password) {
+        const user = getUser();
+        if (!user) return null;
+
+        if (user.email === email && user.password === password) {
+            localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: user.id }));
+            return user;
+        }
+
+        return null;
+    }
+
+    function logout() {
+        localStorage.removeItem(SESSION_KEY);
+
+        // ✅ Netlify-safe redirect
+        window.location.replace("/");
+    }
+
+    function getCurrentUser() {
+        if (!isLoggedIn()) return null;
+        return getUser();
+    }
+
+    function updateUserInfo(updatedUser) {
+        localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+    }
+
+    function deleteAccount() {
+        localStorage.removeItem(USER_KEY);
+        localStorage.removeItem(SESSION_KEY);
+        window.location.replace("/");
+    }
+
+    return {
+        register,
+        login,
+        logout,
+        isLoggedIn,
+        getCurrentUser,
+        updateUserInfo,
+        deleteAccount
     };
-
-    users.push(user);
-    localStorage.setItem("users", JSON.stringify(users));
-
-    // auto login after register
-    localStorage.setItem("token", "local-token");
-    localStorage.setItem("userData", JSON.stringify(user));
-  },
-
-  login: async (email, password) => {
-    const users = JSON.parse(localStorage.getItem("users")) || [];
-    const user = users.find(u => u.email === email && u.password === password);
-
-    if (!user) {
-      throw new Error("Invalid email or password");
-    }
-
-    localStorage.setItem("token", "local-token");
-    localStorage.setItem("userData", JSON.stringify(user));
-  }
-};
+})();
