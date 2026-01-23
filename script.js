@@ -101,17 +101,21 @@
     }
 })();
 
-// Make logout function available globally
+// ================= LOGOUT (FIXED & SAFE) =================
 window.logout = function () {
-    if (!confirm('Switch account and logout?')) return;
+    if (!confirm('Logout?')) return;
 
-    // Clear ALL frontend state
-    expenses = [];
-    localStorage.clear();
+    // ✅ remove ONLY session-related keys
+    localStorage.removeItem('finflow_token');
+    localStorage.removeItem('finflow_user');
 
-    // Hard redirect (prevents cached JS state)
-    window.location.replace('login.html');
+    // ❌ DO NOT clear expenses or profile
+    // ❌ DO NOT localStorage.clear()
+
+    // ✅ Netlify-safe redirect
+    window.location.replace('/');
 };
+
 
 // ================= END AUTHENTICATION CHECK =================
 
@@ -3644,3 +3648,4 @@ function deleteAccount() {
         }
     }
 }
+
