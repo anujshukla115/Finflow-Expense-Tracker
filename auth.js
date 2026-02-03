@@ -1,72 +1,49 @@
-// ================= AUTH SYSTEM =================
 window.auth = (() => {
-    const API_BASE = "https://your-railway-backend.up.railway.app/api/auth";
-    const TOKEN_KEY = "finflow_token";
-    const USER_KEY = "finflow_user";
+  const API_BASE = "https://your-railway-backend.up.railway.app/api/auth";
+  const TOKEN_KEY = "finflow_token";
+  const USER_KEY = "finflow_user";
 
-    async function makeRequest(endpoint, data) {
-        const response = await fetch(`${API_BASE}${endpoint}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data)
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'Request failed');
-        }
-        
-        return await response.json();
+  async function request(endpoint, data) {
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message);
     }
 
-    function saveAuthData(token, user) {
-        localStorage.setItem(TOKEN_KEY, token);
-        localStorage.setItem(USER_KEY, JSON.stringify(user));
-    }
+    return res.json();
+  }
 
-    function getToken() {
-        return localStorage.getItem(TOKEN_KEY);
-    }
+  function save(token, user) {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  }
 
-    function getUser() {
-        return JSON.parse(localStorage.getItem(USER_KEY));
-    }
+  return {
+    login: async (email, password) => {
+      const d = await request("/login", { email, password });
+      save(d.token, d.user);
+      return d.user;
+    },
 
-    function isLoggedIn() {
-        return !!getToken();
-    }
+    register: async (data) => {
+      const d = await request("/register", data);
+      save(d.token, d.user);
+      return d.user;
+    },
 
-    async function register({ name, email, password }) {
-        const data = await makeRequest('/register', { name, email, password });
-        saveAuthData(data.token, data.user);
-        return data.user;
-    }
+    logout() {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      location.href = "index.html";
+    },
 
-    async function login(email, password) {
-        const data = await makeRequest('/login', { email, password });
-        saveAuthData(data.token, data.user);
-        return data.user;
-    }
-
-    function logout() {
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(USER_KEY);
-        window.location.replace("/");
-    }
-
-    function getCurrentUser() {
-        if (!isLoggedIn()) return null;
-        return getUser();
-    }
-
-    return {
-        register,
-        login,
-        logout,
-        isLoggedIn,
-        getCurrentUser,
-        getToken // Add this for API requests
-    };
+    getToken: () => localStorage.getItem(TOKEN_KEY),
+    getUser: () => JSON.parse(localStorage.getItem(USER_KEY)),
+    isLoggedIn: () => !!localStorage.getItem(TOKEN_KEY)
+  };
 })();
