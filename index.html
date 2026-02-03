@@ -2,95 +2,73 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-
- <script>
-  if (!localStorage.getItem("finflow_token")) {
-    location.replace("index.html");
-  }
-</script>
-
-
-
-  
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-   
-  
   <title>FinFlow | Expense Tracker</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <!-- Animate.css for animations -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
 </head>
 <body>
 
 <div id="globalMessage" class="message"></div>
 
-
 <div class="app">
   <!-- ================= SIDEBAR ================= -->
-<aside class="sidebar">
-  <div class="sidebar-header">
-    <div class="logo">
-      <i class="fas fa-chart-line"></i>
-      <span class="logo-text">FinFlow</span>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <i class="fas fa-chart-line"></i>
+        <span class="logo-text">FinFlow</span>
+      </div>
     </div>
-  </div>
+    
+    <div class="sidebar-nav">
+      <button class="nav-btn active" onclick="showSection('dashboard')">
+        <i class="fas fa-home"></i>
+        <span class="nav-text">Dashboard</span>
+      </button>
+      
+      <button class="nav-btn" onclick="showSection('expenses')">
+        <i class="fas fa-wallet"></i>
+        <span class="nav-text">Expenses</span>
+      </button>
+      
+      <button class="nav-btn" onclick="showSection('analytics')">
+        <i class="fas fa-chart-pie"></i>
+        <span class="nav-text">Analytics</span>
+      </button>
+      
+      <button class="nav-btn" onclick="showSection('recurring')">
+        <i class="fas fa-redo"></i>
+        <span class="nav-text">Recurring</span>
+      </button>
+      
+      <button class="nav-btn" onclick="showSection('bills')">
+        <i class="fas fa-bell"></i>
+        <span class="nav-text">Bill Reminders</span>
+      </button>
+      
+      <button class="nav-btn" onclick="showSection('split')">
+        <i class="fas fa-users"></i>
+        <span class="nav-text">Split Expenses</span>
+      </button>
+    </div>
+    
+    <div class="sidebar-footer">
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">
+        <i class="fas fa-moon" id="themeIcon"></i>
+        <span class="nav-text">Theme</span>
+      </button>
+      
+      <button class="profile-btn" onclick="toggleProfile()">
+        <i class="fas fa-user-circle"></i>
+        <span class="nav-text">Profile</span>
+      </button>
+    </div>
+  </aside>
   
-  <div class="sidebar-nav">
-    <button class="nav-btn active" onclick="showSection('dashboard')">
-      <i class="fas fa-home"></i>
-      <span class="nav-text">Dashboard</span>
-    </button>
-    
-    <button class="nav-btn" onclick="showSection('expenses')">
-      <i class="fas fa-wallet"></i>
-      <span class="nav-text">Expenses</span>
-    </button>
-    
-    <button class="nav-btn" onclick="showSection('analytics')">
-      <i class="fas fa-chart-pie"></i>
-      <span class="nav-text">Analytics</span>
-    </button>
-    
-    <button class="nav-btn" onclick="showSection('recurring')">
-      <i class="fas fa-redo"></i>
-      <span class="nav-text">Recurring</span>
-    </button>
-    
-    <button class="nav-btn" onclick="showSection('bills')">
-      <i class="fas fa-bell"></i>
-      <span class="nav-text">Bill Reminders</span>
-    </button>
-    
-    <button class="nav-btn" onclick="showSection('split')">
-      <i class="fas fa-users"></i>
-      <span class="nav-text">Split Expenses</span>
-    </button>
-  </div>
-  
-  <div class="sidebar-footer">
-    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">
-      <i class="fas fa-moon" id="themeIcon"></i>
-      <span class="nav-text">Theme</span>
-    </button>
-    
-    <button class="profile-btn" onclick="toggleProfile()">
-      <i class="fas fa-user-circle"></i>
-      <span class="nav-text">Profile</span>
-    </button>
-
-    
-    <!-- LOGOUT BUTTON MOVED INSIDE SIDEBAR-FOOTER -->
-    <button class="logout-btn" onclick="logout()" title="Logout">
-      <i class="fas fa-sign-out-alt"></i>
-      <span class="nav-text">Logout</span>
-    </button>
-   
-  </div>
-</aside>
-<!-- ================= MAIN CONTENT ================= -->
+  <!-- ================= MAIN CONTENT ================= -->
   <main class="main">
     <!-- Header -->
     <header class="main-header">
@@ -112,7 +90,7 @@
           <i class="fas fa-user-cog"></i> Profile
         </button>
       </div>
-</header>
+    </header>
 
     <!-- ===== DASHBOARD SECTION ===== -->
     <section id="dashboard" class="section">
@@ -159,7 +137,7 @@
       </div>
 
       <div class="chart-container">
-        <!-- First Chart: Monthly Income vs Expenses (Line/Bar Chart) -->
+        <!-- First Chart: Monthly Income vs Expenses -->
         <div class="chart-card">
           <div class="chart-header">
             <h3>Monthly Income vs Expenses</h3>
@@ -381,78 +359,53 @@
     </section>
   </main>
 
- <!-- ================= PROFILE MODAL ================= -->
-<div id="profileModal" class="modal hidden">
+  <!-- ================= PROFILE MODAL ================= -->
+  <div id="profileModal" class="modal hidden">
     <div class="modal-content">
-        <div class="modal-header">
-            <h3><i class="fas fa-user-cog"></i> Profile Settings</h3>
-            <button class="modal-close" onclick="toggleProfile()">
-                <i class="fas fa-times"></i>
+      <div class="modal-header">
+        <h3><i class="fas fa-user-cog"></i> Profile Settings</h3>
+        <button class="modal-close" onclick="toggleProfile()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="profile-form">
+          <div class="form-group">
+            <label for="profileName"><i class="fas fa-user"></i> Full Name</label>
+            <input id="profileName" placeholder="Enter your full name" />
+          </div>
+          
+          <div class="form-group">
+            <label for="profileIncome"><i class="fas fa-money-bill-wave"></i> Monthly Income</label>
+            <input id="profileIncome" type="number" placeholder="Enter monthly income" />
+          </div>
+          
+          <div class="form-group">
+            <label for="profileCurrency"><i class="fas fa-globe"></i> Currency</label>
+            <select id="profileCurrency">
+              <option value="INR">Indian Rupee (₹)</option>
+              <option value="USD">US Dollar ($)</option>
+              <option value="EUR">Euro (€)</option>
+              <option value="GBP">British Pound (£)</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="profileBudget"><i class="fas fa-chart-pie"></i> Monthly Budget</label>
+            <input id="profileBudget" type="number" placeholder="Optional monthly budget" />
+          </div>
+          
+          <div class="modal-actions">
+            <button class="btn-secondary" onclick="toggleProfile()">Cancel</button>
+            <button class="btn-primary" onclick="saveProfile()">
+              <i class="fas fa-save"></i> Save Changes
             </button>
+          </div>
         </div>
-        
-        <div class="modal-body">
-            <div class="profile-form">
-                <div class="form-group">
-                    <label for="profileName"><i class="fas fa-user"></i> Full Name</label>
-                    <input id="profileName" placeholder="Enter your full name" />
-                </div>
-                
-                <div class="form-group">
-    <label><i class="fas fa-envelope"></i> Email</label>
-    <p id="profileEmail" class="profile-email">user@email.com</p>
-</div>
-
-
-
-                <div class="form-group">
-                    <label for="profileIncome"><i class="fas fa-money-bill-wave"></i> Monthly Income</label>
-                    <input id="profileIncome" type="number" placeholder="Enter monthly income" />
-                </div>
-                
-                <div class="form-group">
-                    <label for="profileCurrency"><i class="fas fa-globe"></i> Currency</label>
-                    <select id="profileCurrency">
-                        <option value="INR">Indian Rupee (₹)</option>
-                        <option value="USD">US Dollar ($)</option>
-                        <option value="EUR">Euro (€)</option>
-                        <option value="GBP">British Pound (£)</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="profileBudget"><i class="fas fa-chart-pie"></i> Monthly Budget</label>
-                    <input id="profileBudget" type="number" placeholder="Optional monthly budget" />
-                </div>
-                
-                <div class="user-actions-section">
-                    <h4><i class="fas fa-user-shield"></i> Account Actions</h4>
-                    <div class="actions-grid">
-
-                      <button class="btn-secondary" onclick="switchAccount()">
-                      <i class="fas fa-exchange-alt"></i> Switch Account
-                         </button>
-                        
-                         <button class="btn-danger" onclick="deleteAccount()">
-                            <i class="fas fa-trash"></i> Delete Account
-                        </button>
-
-                    </div>
-                    <p class="text-muted small" style="margin-top: 10px;">
-                        <i class="fas fa-info-circle"></i> Logging out will preserve all your data. You can login again anytime.
-                    </p>
-                </div>
-                
-                <div class="modal-actions">
-                    <button class="btn-secondary" onclick="toggleProfile()">Cancel</button>
-                    <button class="btn-primary" onclick="saveProfile()">
-                        <i class="fas fa-save"></i> Save Changes
-                    </button>
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
-</div>
+  </div>
 
   <!-- ADD RECURRING EXPENSE MODAL -->
   <div id="addRecurringModal" class="modal hidden">
@@ -743,28 +696,6 @@
 
 <!-- SCRIPTS -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script>
-  function logout() {
-    localStorage.removeItem("token");
-    window.location.replace("./index.html");
-  }
-</script>
-
-<!-- Load auth.js FIRST -->
-<script src="auth.js"></script>
-<script src="./script.js"></script> <!-- Other scripts AFTER -->
-
-
+<script src="script.js"></script>
 </body>
-
 </html>
-
-
-
-
-
-
-
-
-
-
