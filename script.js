@@ -1,6 +1,6 @@
 // ================= COMPLETE EXPENSE TRACKER SCRIPT =================
 // UPDATED VERSION - Includes button visibility fix for light theme
-const API_BASE = "https://your-railway-backend.up.railway.app/api";
+const API_BASE = "https://finflow-expense-tracker-backend-production.up.railway.app/api";
 
 async function apiFetch(url, options = {}) {
   const token = window.auth.getToken();
@@ -3668,6 +3668,7 @@ function deleteAccount() {
         }
     }
 }
+
 
 
 
