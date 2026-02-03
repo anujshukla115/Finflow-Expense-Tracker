@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-   <script>
-  const session = localStorage.getItem("finflow_session");
-  if (session) {
-    window.location.replace("./main.html");
+  <script>
+  if (localStorage.getItem("finflow_token")) {
+    location.replace("main.html");
   }
 </script>
+
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     
@@ -425,6 +425,7 @@ document.querySelectorAll('.social-btn').forEach(btn => {
 </body>
 
 </html>
+
 
 
 
