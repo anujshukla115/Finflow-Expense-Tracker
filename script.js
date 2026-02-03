@@ -140,7 +140,7 @@ window.logout = function () {
 // ================= END AUTHENTICATION CHECK =================
 
 // Configuration
-const API_BASE = 'http://localhost:5000/api';
+
 let userId = null;
 let monthlyIncome = 0;
 let userCurrency = 'INR';
@@ -3668,6 +3668,7 @@ function deleteAccount() {
         }
     }
 }
+
 
 
 
