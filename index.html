@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8" />
    <script>
-  const token = localStorage.getItem("token");
-  if (token) {
+  const session = localStorage.getItem("finflow_session");
+  if (session) {
     window.location.replace("./main.html");
   }
 </script>
@@ -358,9 +358,9 @@ loginForm.addEventListener('submit', async (e) => {
     
     try {
        await auth.login(loginEmail.value, loginPassword.value);
-
+        
 setTimeout(() => {
-  window.location.replace("./index.html");
+  window.location.replace("./main.html");
 }, 500);
 
     } catch (err) {
@@ -401,8 +401,9 @@ document.getElementById('authLoadingOverlay').classList.add('hidden');
 
 showAuthMessage('Account created successfully! Redirecting...', 'success');
 
+
 setTimeout(() => {
-    window.location.replace('./index.html');
+    window.location.replace('./main.html');
 }, 800);
 
     } catch (err) {
@@ -424,6 +425,7 @@ document.querySelectorAll('.social-btn').forEach(btn => {
 </body>
 
 </html>
+
 
 
 
