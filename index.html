@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-  <script>
-  if (localStorage.getItem("finflow_token")) {
-    location.replace("main.html");
+   <script>
+  const session = localStorage.getItem("finflow_session");
+  if (session) {
+    window.location.replace("./main.html");
   }
 </script>
-
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     
@@ -97,10 +97,20 @@
                 <i class="fas fa-sign-in-alt"></i>
                 <span>Login to Dashboard</span>
             </button>
-            
-<div class="auth-divider">
+
+            <div class="auth-divider">
                 <span>or continue with</span>
             </div>
+
+            <div class="social-auth">
+                <button type="button" class="social-btn google-btn">
+                    <i class="fab fa-google"></i> Google
+                </button>
+                <button type="button" class="social-btn github-btn">
+                    <i class="fab fa-github"></i> GitHub
+                </button>
+            </div>
+        </form>
 
         <!-- REGISTER FORM -->
         <form id="registerForm" class="auth-form">
@@ -147,7 +157,11 @@
                     <span class="checkmark"></span>
                     I agree to the <a href="#" class="terms-link">Terms & Conditions</a>
                 </label>
-                
+                <label class="checkbox-container">
+                    <input type="checkbox" id="newsletterSubscription">
+                    <span class="checkmark"></span>
+                    Subscribe to newsletter
+                </label>
             </div>
 
             <button type="submit" class="btn-primary auth-submit-btn">
@@ -156,7 +170,14 @@
             </button>
         </form>
 
-      
+        <!-- Demo Login -->
+        <div class="demo-login">
+            <p class="demo-title">Want to try first?</p>
+            <button class="btn-secondary demo-btn" onclick="useDemoAccount()">
+                <i class="fas fa-magic"></i> Try Demo Account
+            </button>
+            <p class="demo-note">Experience all features with sample data</p>
+        </div>
 
         <!-- Footer -->
         <div class="auth-footer">
@@ -404,9 +425,6 @@ document.querySelectorAll('.social-btn').forEach(btn => {
 </body>
 
 </html>
-
-
-
 
 
 
