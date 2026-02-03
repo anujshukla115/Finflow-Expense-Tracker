@@ -1,5 +1,7 @@
 window.auth = (() => {
-  const API_BASE = "https://finflow-expense-tracker-backend-production.up.railway.app/api/auth";
+  const API_BASE =
+    "https://finflow-expense-tracker-backend-production.up.railway.app/api/auth";
+
   const TOKEN_KEY = "finflow_token";
   const USER_KEY = "finflow_user";
 
@@ -12,48 +14,47 @@ window.auth = (() => {
 
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.message);
+      throw new Error(err.message || "Request failed");
     }
 
     return res.json();
   }
 
-  function save(token, user) {
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
-  }
-
   return {
-    login: async (email, password) => {
-      const d = await request("/login", { email, password });
-      save(d.token, d.user);
-      return d.user;
+    async login(email, password) {
+      const data = await request("/login", { email, password });
+      localStorage.setItem(TOKEN_KEY, data.token);
+      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      return data.user;
     },
 
-    register: async (data) => {
-      const d = await request("/register", data);
-      save(d.token, d.user);
-      return d.user;
+    async register(payload) {
+      const data = await request("/register", payload);
+      localStorage.setItem(TOKEN_KEY, data.token);
+      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      return data.user;
     },
 
     logout() {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(USER_KEY);
+      localStorage.clear();
       location.href = "index.html";
     },
 
-    getToken: () => localStorage.getItem(TOKEN_KEY),
-    getUser: () => JSON.parse(localStorage.getItem(USER_KEY)),
-    getCurrentUser() {
-  try {
-    return JSON.parse(localStorage.getItem("finflow_user"));
-  } catch {
-    return null;
-  }
-},
+    getToken() {
+      return localStorage.getItem(TOKEN_KEY);
+    },
 
-    isLoggedIn: () => !!localStorage.getItem(TOKEN_KEY)
+    getUser() {
+      return JSON.parse(localStorage.getItem(USER_KEY));
+    },
+
+    // 🔑 REQUIRED (fixes your console error)
+    getCurrentUser() {
+      return JSON.parse(localStorage.getItem(USER_KEY));
+    },
+
+    isLoggedIn() {
+      return !!localStorage.getItem(TOKEN_KEY);
+    }
   };
 })();
-
-
