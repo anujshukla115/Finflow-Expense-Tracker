@@ -8,7 +8,9 @@ window.auth = (() => {
   async function request(endpoint, data) {
     const res = await fetch(`${API_BASE}${endpoint}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify(data)
     });
 
@@ -48,7 +50,6 @@ window.auth = (() => {
       return JSON.parse(localStorage.getItem(USER_KEY));
     },
 
-    // 🔑 REQUIRED (fixes your console error)
     getCurrentUser() {
       return JSON.parse(localStorage.getItem(USER_KEY));
     },
