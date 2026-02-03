@@ -16,123 +16,48 @@ async function apiFetch(url, options = {}) {
 }
 
 // ================= AUTHENTICATION CHECK =================
-(function() {
-    // Wait for auth to be available
-    const checkAuth = setInterval(() => {
-        if (window.auth && window.auth.isLoggedIn) {
-            clearInterval(checkAuth);
-            initializeApp();
-        }
-    }, 100);
-    
-    function initializeApp() {
-        const currentUser = window.auth.getCurrentUser();
-        
-        if (!currentUser) {
-            console.log('No user found, checking URL');
-            const currentPage = window.location.pathname.split('/').pop();
-            const pagesRequiringAuth = ['index.html', 'dashboard.html'];
-            
-            if (pagesRequiringAuth.includes(currentPage)) {
-                console.log('Redirecting to login...');
-                window.location.href = 'login.html';
-                return;
-            }
-        } else {
-            console.log('User logged in:', currentUser.name);
-            
-            // Update UI with user info
-            const usernameElement = document.getElementById('username');
-            if (usernameElement) {
-                usernameElement.textContent = `Welcome back, ${currentUser.name}`;
-            }
-            
-            // Update profile form if it exists
-            const profileName = document.getElementById('profileName');
-            const profileIncome = document.getElementById('profileIncome');
-            const profileCurrency = document.getElementById('profileCurrency');
-            const profileBudget = document.getElementById('profileBudget');
-            
-            if (profileName && currentUser.profile) {
-                profileName.value = currentUser.name || '';
-            }
-            if (profileIncome && currentUser.profile) {
-                profileIncome.value = currentUser.profile.monthlyIncome || '';
-            }
-            if (profileCurrency && currentUser.profile) {
-                profileCurrency.value = currentUser.profile.currency || 'INR';
-            }
-            if (profileBudget && currentUser.profile) {
-                profileBudget.value = currentUser.profile.monthlyBudget || '';
-            }
-            
-            // Update currency selector if it exists
-            const currencySelector = document.getElementById('currencySelector');
-            if (currencySelector && currentUser.profile) {
-                currencySelector.value = currentUser.profile.currency || 'INR';
-            }
-            
-            // Initialize app data for this user
-            initializeUserData(currentUser);
-        }
+// ================= AUTHENTICATION CHECK =================
+(function () {
+  const waitForAuth = setInterval(() => {
+    if (window.auth?.isLoggedIn) {
+      clearInterval(waitForAuth);
+      initializeApp();
     }
-    
-    function initializeUserData(user) {
-        console.log('Initializing data for user:', user.email);
-        
-        // Create user-specific data keys
-        const userDataKey = `finflow_user_data_${user.id}`;
-        
-        // Load user data or initialize
-        let userData = JSON.parse(localStorage.getItem(userDataKey)) || {
-            expenses: [],
-            recurringExpenses: [],
-            billReminders: [],
-            splitExpenses: [],
-            customCategories: []
-        };
-        
-        // Store in global variables (make sure they're defined)
-        window.userExpenses = userData.expenses || [];
-        window.userRecurringExpenses = userData.recurringExpenses || [];
-        window.userBillReminders = userData.billReminders || [];
-        window.userSplitExpenses = userData.splitExpenses || [];
-        window.userCustomCategories = userData.customCategories || [];
-        
-        // Store user ID globally
-        window.userId = user.id;
-        window.userCurrency = user.profile?.currency || 'INR';
-        window.monthlyIncome = user.profile?.monthlyIncome || 0;
-        window.monthlyBudget = user.profile?.monthlyBudget || 0;
-        
-        console.log('User data loaded:', {
-            expenses: window.userExpenses.length,
-            recurring: window.userRecurringExpenses.length,
-            bills: window.userBillReminders.length,
-            split: window.userSplitExpenses.length,
-            categories: window.userCustomCategories.length
-        });
+  }, 100);
+
+  function initializeApp() {
+    const user = window.auth.getCurrentUser?.();
+
+    if (!user) {
+      console.log("No user logged in");
+      return;
     }
+
+    console.log("User authenticated:", user.email);
+
+    // SAFE DOM updates
+    const usernameEl = document.getElementById("username");
+    if (usernameEl) {
+      usernameEl.textContent = `Welcome back, ${user.name}`;
+    }
+
+    // Global user state
+    window.userId = user.id;
+    window.userCurrency = user.profile?.currency || "INR";
+    window.monthlyIncome = user.profile?.monthlyIncome || 0;
+    window.monthlyBudget = user.profile?.monthlyBudget || 0;
+  }
 })();
+
 
 // ================= LOGOUT (FIXED & SAFE) =================
 window.logout = function () {
-    if (!confirm('Logout?')) return;
+  if (!confirm("Logout?")) return;
 
-    // 🔴 Clear ONLY auth-related data
-    localStorage.removeItem('finflow_token');
-    localStorage.removeItem('finflow_user');
-    localStorage.removeItem('userData');
-    localStorage.removeItem('userId');
+  localStorage.removeItem("finflow_token");
+  localStorage.removeItem("finflow_user");
 
-    // 🔴 Clear auth runtime state
-    if (window.auth) {
-        window.auth.isLoggedIn = false;
-        window.auth.currentUser = null;
-    }
-
-    // 🔴 Hard redirect (no back, no reload loop)
-    window.location.href = 'index.html';
+  window.location.replace("login.html");
 };
 
 
@@ -3563,26 +3488,7 @@ document.body.appendChild(debugButton);
 
 console.log('Expense Tracker fully loaded!');
 
-async function loadCurrentUser() {
-    try {
-        const token = localStorage.getItem('finflow_token');
-        
-        // If no token, check for local user data
-        if (!token) {
-            const localUser = JSON.parse(localStorage.getItem('userData'));
-            if (localUser) {
-                setUserInfo(localUser);
-                return;
-            }
-            console.log('No authentication token found');
-            return;
-        }
 
-        const res = await fetch('http://localhost:5000/api/users/me', {
-            headers: {
-                Authorization: `Bearer ${token}`
-            }
-        });
 
         if (!res.ok) {
             // If API fails, fall back to local storage
@@ -3668,6 +3574,7 @@ function deleteAccount() {
         }
     }
 }
+
 
 
 
