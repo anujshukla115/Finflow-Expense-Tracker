@@ -1,5 +1,19 @@
 // ================= COMPLETE EXPENSE TRACKER SCRIPT =================
 // UPDATED VERSION - Includes button visibility fix for light theme
+const API_BASE = "https://your-railway-backend.up.railway.app/api";
+
+async function apiFetch(url, options = {}) {
+  const token = window.auth.getToken();
+
+  return fetch(`${API_BASE}${url}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+      ...(options.headers || {})
+    }
+  });
+}
 
 // ================= AUTHENTICATION CHECK =================
 (function() {
@@ -3654,6 +3668,7 @@ function deleteAccount() {
         }
     }
 }
+
 
 
 
