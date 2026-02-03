@@ -38,8 +38,9 @@ window.auth = (() => {
     },
 
     logout() {
-      localStorage.clear();
-      location.href = "index.html";
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      window.location.replace("index.html");
     },
 
     getToken() {
