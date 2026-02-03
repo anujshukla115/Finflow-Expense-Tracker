@@ -1,5 +1,5 @@
 window.auth = (() => {
-  const API_BASE = "https://your-railway-backend.up.railway.app/api/auth";
+  const API_BASE = "https://finflow-expense-tracker-backend-production.up.railway.app/api/auth";
   const TOKEN_KEY = "finflow_token";
   const USER_KEY = "finflow_user";
 
@@ -47,3 +47,4 @@ window.auth = (() => {
     isLoggedIn: () => !!localStorage.getItem(TOKEN_KEY)
   };
 })();
+
