@@ -44,7 +44,16 @@ window.auth = (() => {
 
     getToken: () => localStorage.getItem(TOKEN_KEY),
     getUser: () => JSON.parse(localStorage.getItem(USER_KEY)),
+    getCurrentUser() {
+  try {
+    return JSON.parse(localStorage.getItem("finflow_user"));
+  } catch {
+    return null;
+  }
+},
+
     isLoggedIn: () => !!localStorage.getItem(TOKEN_KEY)
   };
 })();
+
 
