@@ -10,692 +10,416 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
 </head>
 <body>
-
-<div id="globalMessage" class="message"></div>
-
-<div class="app">
-  <!-- ================= SIDEBAR ================= -->
-  <aside class="sidebar">
-    <div class="sidebar-header">
-      <div class="logo">
-        <i class="fas fa-chart-line"></i>
-        <span class="logo-text">FinFlow</span>
-      </div>
-    </div>
-    
-    <div class="sidebar-nav">
-      <button class="nav-btn active" onclick="showSection('dashboard')">
-        <i class="fas fa-home"></i>
-        <span class="nav-text">Dashboard</span>
-      </button>
-      
-      <button class="nav-btn" onclick="showSection('expenses')">
-        <i class="fas fa-wallet"></i>
-        <span class="nav-text">Expenses</span>
-      </button>
-      
-      <button class="nav-btn" onclick="showSection('analytics')">
-        <i class="fas fa-chart-pie"></i>
-        <span class="nav-text">Analytics</span>
-      </button>
-      
-      <button class="nav-btn" onclick="showSection('recurring')">
-        <i class="fas fa-redo"></i>
-        <span class="nav-text">Recurring</span>
-      </button>
-      
-      <button class="nav-btn" onclick="showSection('bills')">
-        <i class="fas fa-bell"></i>
-        <span class="nav-text">Bill Reminders</span>
-      </button>
-      
-      <button class="nav-btn" onclick="showSection('split')">
-        <i class="fas fa-users"></i>
-        <span class="nav-text">Split Expenses</span>
-      </button>
-    </div>
-    
-    <div class="sidebar-footer">
-      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">
-        <i class="fas fa-moon" id="themeIcon"></i>
-        <span class="nav-text">Theme</span>
-      </button>
-      
-      <button class="profile-btn" onclick="toggleProfile()">
-        <i class="fas fa-user-circle"></i>
-        <span class="nav-text">Profile</span>
-      </button>
-    </div>
-  </aside>
+  <!-- Only one of these will be visible at a time -->
+  <div id="authPage" class="auth-page" style="display: none;">
+    <!-- Auth content will be loaded here by JavaScript -->
+  </div>
   
-  <!-- ================= MAIN CONTENT ================= -->
-  <main class="main">
-    <!-- Header -->
-    <header class="main-header">
-      <div class="header-left">
-        <h1 id="username" class="animate__animated animate__fadeIn">Welcome to FinFlow</h1>
-        <p class="subtitle">Track your expenses, achieve your financial goals</p>
-      </div>
-      <div class="header-right">
-        <div class="currency-selector">
-          <select id="currencySelector" onchange="changeCurrency(this.value)">
-            <option value="INR">₹ INR</option>
-            <option value="USD">$ USD</option>
-            <option value="EUR">€ EUR</option>
-            <option value="GBP">£ GBP</option>
-          </select>
-        </div>
-        <div class="date-display" id="currentDate"></div>
-        <button class="btn-primary" onclick="toggleProfile()">
-          <i class="fas fa-user-cog"></i> Profile
-        </button>
-      </div>
-    </header>
-
-    <!-- ===== DASHBOARD SECTION ===== -->
-    <section id="dashboard" class="section">
-      <div class="stats-grid">
-        <div class="stat-card income animate__animated animate__fadeInUp">
-          <div class="stat-icon">
-            <i class="fas fa-money-bill-wave"></i>
-          </div>
-          <div class="stat-content">
-            <p class="stat-label">Monthly Income</p>
-            <h3 class="stat-value"><span id="currencySymbol">₹</span><span id="totalIncome">0</span></h3>
-          </div>
-        </div>
-        
-        <div class="stat-card expense animate__animated animate__fadeInUp" style="animation-delay: 0.1s">
-          <div class="stat-icon">
-            <i class="fas fa-shopping-cart"></i>
-          </div>
-          <div class="stat-content">
-            <p class="stat-label">Total Expenses</p>
-            <h3 class="stat-value"><span id="currencySymbol">₹</span><span id="totalExpense">0</span></h3>
-          </div>
-        </div>
-        
-        <div class="stat-card balance animate__animated animate__fadeInUp" style="animation-delay: 0.2s">
-          <div class="stat-icon">
-            <i class="fas fa-piggy-bank"></i>
-          </div>
-          <div class="stat-content">
-            <p class="stat-label">Balance</p>
-            <h3 class="stat-value"><span id="currencySymbol">₹</span><span id="balance">0</span></h3>
-          </div>
-        </div>
-        
-        <div class="stat-card savings animate__animated animate__fadeInUp" style="animation-delay: 0.3s">
-          <div class="stat-icon">
-            <i class="fas fa-chart-line"></i>
-          </div>
-          <div class="stat-content">
-            <p class="stat-label">Savings Rate</p>
-            <h3 class="stat-value" id="savingsRate">0%</h3>
-          </div>
-        </div>
-      </div>
-
-      <div class="chart-container">
-        <!-- First Chart: Monthly Income vs Expenses -->
-        <div class="chart-card">
-          <div class="chart-header">
-            <h3>Monthly Income vs Expenses</h3>
-            <div class="chart-actions">
-              <button class="btn-icon" onclick="downloadChart('trendChart')" title="Download">
-                <i class="fas fa-download"></i>
-              </button>
-            </div>
-          </div>
-          <div class="chart-wrapper">
-            <canvas id="trendChart"></canvas>
-          </div>
-        </div>
-        
-        <!-- DONUT CHART: Income vs Expenses vs Savings -->
-        <div class="chart-card">
-          <div class="chart-header">
-            <h3>Income vs Expenses vs Savings</h3>
-            <div class="chart-actions">
-              <button class="btn-icon" onclick="downloadChart('incomeExpenseChart')" title="Download">
-                <i class="fas fa-download"></i>
-              </button>
-            </div>
-          </div>
-          <div class="chart-wrapper">
-            <canvas id="incomeExpenseChart"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <div class="recent-expenses">
-        <div class="section-header">
-          <h3>Recent Expenses</h3>
-          <button class="btn-text" onclick="showSection('expenses')">
-            View All <i class="fas fa-arrow-right"></i>
-          </button>
-        </div>
-        <div id="recentExpenseList" class="expense-table">
-          <div class="empty-state">
-            <i class="fas fa-receipt"></i>
-            <p>No expenses yet</p>
-            <p class="text-muted">Add your first expense to get started</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== EXPENSE SECTION ===== -->
-    <section id="expenses" class="section hidden">
-      <div class="section-header">
-        <div class="header-left">
-          <h2>Expense Management</h2>
-        </div>
-        <div class="header-right">
-          <div class="total-display">
-            Total: <strong id="expenseTotal">₹0</strong>
-          </div>
-          <button class="btn-secondary" onclick="manageCategories()">
-            <i class="fas fa-tags"></i> Manage Categories
-          </button>
-        </div>
-      </div>
-
-      <div class="add-expense-card">
-        <h3>Add New Expense</h3>
-        <div class="expense-form-grid">
-          <div class="form-group">
-            <label for="title"><i class="fas fa-pen"></i> Title</label>
-            <input id="title" placeholder="What did you spend on?" />
-          </div>
-          
-          <div class="form-group">
-            <label for="amount"><i class="fas fa-rupee-sign"></i> Amount</label>
-            <input id="amount" type="number" placeholder="0.00" />
-          </div>
-          
-          <div class="form-group">
-            <label for="category"><i class="fas fa-tag"></i> Category</label>
-            <select id="category">
-              <option value="">Select Category</option>
-              <!-- Categories will be populated by JavaScript -->
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label for="date"><i class="fas fa-calendar"></i> Date</label>
-            <input id="expenseDate" type="date" />
-          </div>
-          
-          <button class="btn-primary btn-add" onclick="addExpense()">
-            <i class="fas fa-plus-circle"></i> Add Expense
-          </button>
-        </div>
-      </div>
-
-      <div class="expense-list-card">
-        <div class="list-header">
-          <h3>All Expenses</h3>
-          <div class="filter-controls">
-            <select id="filterCategory" onchange="loadExpenses()">
-              <option value="">All Categories</option>
-            </select>
-            <select id="filterMonth" onchange="loadExpenses()">
-              <option value="">All Time</option>
-            </select>
-          </div>
-        </div>
-        <div id="expenseList" class="expense-table">
-          <!-- Expenses will load here -->
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== ANALYTICS SECTION ===== -->
-    <section id="analytics" class="section hidden">
-      <div class="section-header">
-        <h2>Financial Analytics</h2>
-        <div class="time-range">
-          <select id="analyticsPeriod" onchange="loadAnalytics()">
-            <option value="month">This Month</option>
-            <option value="quarter">Last 3 Months</option>
-            <option value="year">This Year</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="analytics-grid">
-        <div class="analytics-card large">
-          <div class="chart-header">
-            <h3>Spending Trends</h3>
-            <div class="chart-actions">
-              <button class="btn-icon" onclick="downloadChart('monthlyTrendChart')" title="Download">
-                <i class="fas fa-download"></i>
-              </button>
-            </div>
-          </div>
-          <div class="chart-wrapper">
-            <canvas id="monthlyTrendChart"></canvas>
-          </div>
-        </div>
-        
-        <div class="analytics-card">
-          <div class="chart-header">
-            <h3>Expense Distribution by Category</h3>
-            <div class="chart-actions">
-              <button class="btn-icon" onclick="downloadChart('categoryChart')" title="Download">
-                <i class="fas fa-download"></i>
-              </button>
-            </div>
-          </div>
-          <div class="chart-wrapper">
-            <canvas id="categoryChart"></canvas>
-          </div>
-        </div>
-        
-        <div class="analytics-card">
-          <div class="chart-header">
-            <h3>Top Spending Categories</h3>
-            <div class="chart-actions">
-              <button class="btn-icon" onclick="downloadChart('detailedCategoryChart')" title="Download">
-                <i class="fas fa-download"></i>
-              </button>
-            </div>
-          </div>
-          <div class="chart-wrapper">
-            <canvas id="detailedCategoryChart"></canvas>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== RECURRING EXPENSES SECTION ===== -->
-    <section id="recurring" class="section hidden">
-      <div class="section-header">
-        <h2>Recurring Expenses</h2>
-        <button class="btn-primary" onclick="showAddRecurringModal()">
-          <i class="fas fa-plus-circle"></i> Add Recurring Expense
-        </button>
-      </div>
-
-      <div class="recurring-grid" id="recurringGrid">
-        <!-- Recurring expenses will load here -->
-      </div>
-    </section>
-
-    <!-- ===== BILL REMINDERS SECTION ===== -->
-    <section id="bills" class="section hidden">
-      <div class="section-header">
-        <h2>Bill Reminders</h2>
-        <button class="btn-primary" onclick="showAddBillModal()">
-          <i class="fas fa-plus-circle"></i> Add Bill Reminder
-        </button>
-      </div>
-
-      <div class="reminders-container" id="remindersContainer">
-        <!-- Bill reminders will load here -->
-      </div>
-
-      <div class="calendar-section">
-        <h3>Bill Calendar</h3>
-        <div class="calendar" id="billCalendar">
-          <!-- Calendar will be populated by JavaScript -->
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== SPLIT EXPENSES SECTION ===== -->
-    <section id="split" class="section hidden">
-      <div class="section-header">
-        <h2>Split Expenses</h2>
-        <button class="btn-primary" onclick="showSplitExpenseModal()">
-          <i class="fas fa-plus-circle"></i> Split New Expense
-        </button>
-      </div>
-
-      <div class="split-container" id="splitContainer">
-        <!-- Split expenses will load here -->
-      </div>
-    </section>
-  </main>
-
-  <!-- ================= PROFILE MODAL ================= -->
-  <div id="profileModal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3><i class="fas fa-user-cog"></i> Profile Settings</h3>
-        <button class="modal-close" onclick="toggleProfile()">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      
-      <div class="modal-body">
-        <div class="profile-form">
-          <div class="form-group">
-            <label for="profileName"><i class="fas fa-user"></i> Full Name</label>
-            <input id="profileName" placeholder="Enter your full name" />
-          </div>
-          
-          <div class="form-group">
-            <label for="profileIncome"><i class="fas fa-money-bill-wave"></i> Monthly Income</label>
-            <input id="profileIncome" type="number" placeholder="Enter monthly income" />
-          </div>
-          
-          <div class="form-group">
-            <label for="profileCurrency"><i class="fas fa-globe"></i> Currency</label>
-            <select id="profileCurrency">
-              <option value="INR">Indian Rupee (₹)</option>
-              <option value="USD">US Dollar ($)</option>
-              <option value="EUR">Euro (€)</option>
-              <option value="GBP">British Pound (£)</option>
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label for="profileBudget"><i class="fas fa-chart-pie"></i> Monthly Budget</label>
-            <input id="profileBudget" type="number" placeholder="Optional monthly budget" />
-          </div>
-          
-          <div class="modal-actions">
-            <button class="btn-secondary" onclick="toggleProfile()">Cancel</button>
-            <button class="btn-primary" onclick="saveProfile()">
-              <i class="fas fa-save"></i> Save Changes
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+  <div id="appContainer" style="display: none;">
+    <!-- Main app content will be loaded here by JavaScript -->
   </div>
 
-  <!-- ADD RECURRING EXPENSE MODAL -->
-  <div id="addRecurringModal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3><i class="fas fa-redo"></i> Add Recurring Expense</h3>
-        <button class="modal-close" onclick="closeAddRecurringModal()">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="recurring-form">
-          <div class="form-group">
-            <label for="recurringTitle"><i class="fas fa-pen"></i> Title</label>
-            <input id="recurringTitle" placeholder="e.g., Netflix Subscription" />
-          </div>
-          
-          <div class="form-group">
-            <label for="recurringAmount"><i class="fas fa-rupee-sign"></i> Amount</label>
-            <input id="recurringAmount" type="number" placeholder="0.00" />
-          </div>
-          
-          <div class="form-group">
-            <label for="recurringCategory"><i class="fas fa-tag"></i> Category</label>
-            <select id="recurringCategory">
-              <option value="">Select Category</option>
-              <!-- Categories will be populated by JavaScript -->
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label for="recurringFrequency"><i class="fas fa-redo"></i> Frequency</label>
-            <select id="recurringFrequency">
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly" selected>Monthly</option>
-              <option value="quarterly">Quarterly</option>
-              <option value="yearly">Yearly</option>
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label for="recurringStartDate"><i class="fas fa-calendar"></i> Start Date</label>
-            <input id="recurringStartDate" type="date" />
-          </div>
-          
-          <div class="modal-actions">
-            <button class="btn-secondary" onclick="closeAddRecurringModal()">Cancel</button>
-            <button class="btn-primary" onclick="saveRecurringExpense()">
-              <i class="fas fa-save"></i> Save Recurring Expense
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ADD BILL REMINDER MODAL -->
-  <div id="addBillModal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3><i class="fas fa-bell"></i> Add Bill Reminder</h3>
-        <button class="modal-close" onclick="closeAddBillModal()">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="bill-form">
-          <div class="form-group">
-            <label for="billTitle"><i class="fas fa-pen"></i> Bill Name</label>
-            <input id="billTitle" placeholder="e.g., Electricity Bill" />
-          </div>
-          
-          <div class="form-group">
-            <label for="billAmount"><i class="fas fa-rupee-sign"></i> Amount</label>
-            <input id="billAmount" type="number" placeholder="0.00" />
-          </div>
-          
-          <div class="form-group">
-            <label for="billDueDate"><i class="fas fa-calendar"></i> Due Date</label>
-            <input id="billDueDate" type="date" />
-          </div>
-          
-          <div class="form-group">
-            <label for="billCategory"><i class="fas fa-tag"></i> Category</label>
-            <select id="billCategory">
-              <option value="">Select Category</option>
-              <!-- Categories will be populated by JavaScript -->
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label for="billReminderDays"><i class="fas fa-bell"></i> Remind Before</label>
-            <select id="billReminderDays">
-              <option value="1">1 day before</option>
-              <option value="3" selected>3 days before</option>
-              <option value="7">1 week before</option>
-              <option value="0">On due date</option>
-            </select>
-          </div>
-          
-          <div class="modal-actions">
-            <button class="btn-secondary" onclick="closeAddBillModal()">Cancel</button>
-            <button class="btn-primary" onclick="saveBillReminder()">
-              <i class="fas fa-save"></i> Save Bill Reminder
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SPLIT EXPENSE MODAL -->
-  <div id="splitExpenseModal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3><i class="fas fa-users"></i> Split Expense</h3>
-        <button class="modal-close" onclick="closeSplitExpenseModal()">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="split-form">
-          <div class="form-group">
-            <label for="splitTitle"><i class="fas fa-pen"></i> Expense Title</label>
-            <input id="splitTitle" placeholder="e.g., Dinner with friends" />
-          </div>
-          
-          <div class="form-group">
-            <label for="splitTotalAmount"><i class="fas fa-rupee-sign"></i> Total Amount</label>
-            <input id="splitTotalAmount" type="number" placeholder="0.00" />
-          </div>
-          
-          <div class="form-group">
-            <label for="splitCategory"><i class="fas fa-tag"></i> Category</label>
-            <select id="splitCategory">
-              <option value="">Select Category</option>
-              <!-- Categories will be populated by JavaScript -->
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label for="splitMethod"><i class="fas fa-divide"></i> Split Method</label>
-            <select id="splitMethod" onchange="changeSplitMethod()">
-              <option value="equal">Equal Split</option>
-              <option value="percentage">By Percentage</option>
-              <option value="exact">Exact Amounts</option>
-              <option value="shares">By Shares</option>
-            </select>
-          </div>
-          
-          <div class="split-members-section">
-            <h4>Split Among</h4>
-            <div id="splitMembersContainer">
-              <div class="split-member">
-                <div class="member-input">
-                  <input type="text" placeholder="Member Name" value="You" readonly />
-                  <input type="number" placeholder="Amount" class="split-amount" oninput="updateSplitSummary()" />
-                </div>
-                <button class="btn-icon remove-member" onclick="removeMember(this)">
-                  <i class="fas fa-times"></i>
-                </button>
-              </div>
-            </div>
-            
-            <button class="btn-text" onclick="addMember()">
-              <i class="fas fa-user-plus"></i> Add Member
-            </button>
-          </div>
-          
-          <div class="split-summary">
-            <h4>Split Summary</h4>
-            <div id="splitSummary">
-              <!-- Summary will be populated by JavaScript -->
-            </div>
-          </div>
-          
-          <div class="modal-actions">
-            <button class="btn-secondary" onclick="closeSplitExpenseModal()">Cancel</button>
-            <button class="btn-primary" onclick="saveSplitExpense()">
-              <i class="fas fa-save"></i> Save Split Expense
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ADD CATEGORY MODAL -->
-  <div id="addCategoryModal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3><i class="fas fa-plus-circle"></i> Add New Category</h3>
-        <button class="modal-close" onclick="closeAddCategoryModal()">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="category-form">
-          <div class="form-group">
-            <label for="newCategoryName"><i class="fas fa-tag"></i> Category Name</label>
-            <input id="newCategoryName" placeholder="e.g., Groceries, Travel, etc." />
-          </div>
-          
-          <div class="form-group">
-            <label for="newCategoryIcon"><i class="fas fa-icons"></i> Icon</label>
-            <select id="newCategoryIcon">
-              <option value="📝">📝 Default</option>
-              <option value="🛒">🛒 Groceries</option>
-              <option value="✈️">✈️ Travel</option>
-              <option value="🏠">🏠 Rent</option>
-              <option value="💰">💰 Salary</option>
-              <option value="🍽️">🍽️ Dining</option>
-              <option value="🏋️">🏋️ Fitness</option>
-              <option value="🎁">🎁 Gifts</option>
-              <option value="💼">💼 Business</option>
-              <option value="🐾">🐾 Pets</option>
-              <option value="🎨">🎨 Hobbies</option>
-              <option value="🚗">🚗 Car</option>
-              <option value="📱">📱 Electronics</option>
-              <option value="👕">👕 Clothing</option>
-              <option value="💊">💊 Medicine</option>
-              <option value="🎓">🎓 Courses</option>
-              <option value="🎪">🎪 Events</option>
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label for="newCategoryColor"><i class="fas fa-palette"></i> Color</label>
-            <input type="color" id="newCategoryColor" value="#FF6B6B">
-          </div>
-          
-          <div class="modal-actions">
-            <button class="btn-secondary" onclick="closeAddCategoryModal()">Cancel</button>
-            <button class="btn-primary" onclick="saveNewCategory()">
-              <i class="fas fa-save"></i> Save Category
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- MANAGE CATEGORIES MODAL -->
-  <div id="manageCategoriesModal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3><i class="fas fa-tags"></i> Manage Categories</h3>
-        <button class="modal-close" onclick="closeManageCategoriesModal()">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="categories-management">
-          <div class="categories-section">
-            <h4><i class="fas fa-star"></i> Default Categories</h4>
-            <div id="defaultCategoriesList" class="categories-list">
-              <!-- Default categories will be populated here -->
-            </div>
-          </div>
-          
-          <div class="categories-section">
-            <div class="section-header">
-              <h4><i class="fas fa-user-edit"></i> Your Custom Categories</h4>
-              <button class="btn-text" onclick="showAddCategoryModal()">
-                <i class="fas fa-plus"></i> Add New
-              </button>
-            </div>
-            <div id="customCategoriesList" class="categories-list">
-              <!-- Custom categories will be populated here -->
-            </div>
-          </div>
-          
-          <div class="modal-actions">
-            <button class="btn-secondary" onclick="closeManageCategoriesModal()">Close</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Loading Overlay -->
-  <div id="loadingOverlay" class="loading-overlay hidden">
+  <!-- Loading screen -->
+  <div id="globalLoading" class="loading-overlay" style="display: flex;">
     <div class="loading-spinner"></div>
-    <p>Loading...</p>
+    <p>Loading FinFlow...</p>
   </div>
-</div>
 
-<!-- SCRIPTS -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="script.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Combined JavaScript file -->
+  <script>
+    // ================= CONFIGURATION =================
+    let userId = null;
+    let monthlyIncome = 0;
+    let userCurrency = 'INR';
+    let monthlyBudget = 0;
+    let currentTheme = localStorage.getItem('theme') || 'light';
+
+    // Data storage (will be loaded after auth)
+    let expenses = [];
+    let recurringExpenses = [];
+    let billReminders = [];
+    let splitExpenses = [];
+    let customCategories = [];
+
+    // Currency symbols
+    const CURRENCY_SYMBOLS = {
+        'INR': '₹',
+        'USD': '$',
+        'EUR': '€',
+        'GBP': '£'
+    };
+
+    // Default categories
+    const DEFAULT_CATEGORIES = [
+        { name: 'Food', icon: '🍔', color: '#4361ee' },
+        { name: 'Transport', icon: '🚗', color: '#3a0ca3' },
+        { name: 'Bills', icon: '📄', color: '#7209b7' },
+        { name: 'Shopping', icon: '🛍️', color: '#f72585' },
+        { name: 'Entertainment', icon: '🎬', color: '#4cc9f0' },
+        { name: 'Healthcare', icon: '🏥', color: '#560bad' },
+        { name: 'Education', icon: '📚', color: '#b5179e' },
+        { name: 'Other', icon: '📦', color: '#480ca8' }
+    ];
+
+    // ================= AUTHENTICATION =================
+    function checkAuth() {
+        const session = JSON.parse(localStorage.getItem('userSession') || sessionStorage.getItem('userSession'));
+        
+        if (session && session.isAuthenticated) {
+            // Check if session is still valid (24 hours)
+            const loginTime = new Date(session.loginTime);
+            const now = new Date();
+            const hoursDiff = (now - loginTime) / (1000 * 60 * 60);
+            
+            if (hoursDiff < 24) {
+                userId = session.userId;
+                loadUserData(userId);
+                loadApp();
+                return true;
+            } else {
+                // Session expired
+                localStorage.removeItem('userSession');
+                sessionStorage.removeItem('userSession');
+            }
+        }
+        
+        loadAuth();
+        return false;
+    }
+
+    function loadAuth() {
+        document.getElementById('globalLoading').style.display = 'none';
+        document.getElementById('authPage').style.display = 'block';
+        
+        // Load auth HTML
+        document.getElementById('authPage').innerHTML = `
+            <div class="auth-background">
+                <div class="shape shape-1"></div>
+                <div class="shape shape-2"></div>
+                <div class="shape shape-3"></div>
+            </div>
+
+            <button class="theme-toggle-btn" onclick="toggleAuthTheme()" id="authThemeToggle">
+                <i class="fas fa-moon" id="authThemeIcon"></i>
+                <span>Theme</span>
+            </button>
+
+            <div class="auth-container">
+                <div class="auth-card">
+                    <div class="auth-header">
+                        <div class="logo">
+                            <div class="logo-icon">
+                                <i class="fas fa-chart-line"></i>
+                            </div>
+                            <h2>FinFlow</h2>
+                        </div>
+                        <p class="auth-subtitle">Track your expenses, achieve your financial goals</p>
+                    </div>
+
+                    <div class="auth-error" id="authError"></div>
+
+                    <div class="auth-tabs">
+                        <button class="auth-tab active" onclick="showAuthForm('login')">
+                            <i class="fas fa-sign-in-alt"></i>
+                            <span>Login</span>
+                        </button>
+                        <button class="auth-tab" onclick="showAuthForm('register')">
+                            <i class="fas fa-user-plus"></i>
+                            <span>Register</span>
+                        </button>
+                    </div>
+
+                    <!-- LOGIN FORM -->
+                    <form id="loginForm" class="auth-form active" onsubmit="handleLogin(event)">
+                        <div class="input-group">
+                            <i class="fas fa-envelope"></i>
+                            <input type="email" id="loginEmail" placeholder="Email address" required />
+                            <div class="input-focus-line"></div>
+                        </div>
+
+                        <div class="input-group">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" id="loginPassword" placeholder="Password" required />
+                            <button type="button" class="password-toggle" onclick="togglePassword('loginPassword', this)">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <div class="input-focus-line"></div>
+                        </div>
+
+                        <div class="auth-options">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="rememberMe" />
+                                <span class="checkmark"></span>
+                                Remember me
+                            </label>
+                            <a href="#" class="forgot-password" onclick="showForgotPassword()">Forgot password?</a>
+                        </div>
+
+                        <button type="submit" class="btn-primary auth-submit-btn">
+                            <i class="fas fa-sign-in-alt"></i>
+                            Sign In
+                        </button>
+
+                        <div class="demo-login">
+                            <p class="demo-title">Demo Account (Try it out!)</p>
+                            <button type="button" class="btn-secondary demo-btn" onclick="useDemoAccount()">
+                                <i class="fas fa-user-secret"></i>
+                                Login as Demo User
+                            </button>
+                            <p class="demo-note">Email: demo@finflow.com | Password: demo123</p>
+                        </div>
+                    </form>
+
+                    <!-- REGISTER FORM -->
+                    <form id="registerForm" class="auth-form" onsubmit="handleRegister(event)">
+                        <div class="input-group">
+                            <i class="fas fa-user"></i>
+                            <input type="text" id="registerName" placeholder="Full name" required />
+                            <div class="input-focus-line"></div>
+                        </div>
+
+                        <div class="input-group">
+                            <i class="fas fa-envelope"></i>
+                            <input type="email" id="registerEmail" placeholder="Email address" required />
+                            <div class="input-focus-line"></div>
+                        </div>
+
+                        <div class="input-group">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" id="registerPassword" placeholder="Password" 
+                                   oninput="checkPasswordStrength(this.value)"
+                                   minlength="6" required />
+                            <button type="button" class="password-toggle" onclick="togglePassword('registerPassword', this)">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <div class="input-focus-line"></div>
+                        </div>
+
+                        <div class="password-strength" id="passwordStrength">
+                            <div class="strength-bar">
+                                <div class="strength-fill" id="strengthFill"></div>
+                            </div>
+                            <div class="strength-text" id="strengthText">Password strength: None</div>
+                        </div>
+
+                        <div class="input-group">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" id="registerConfirmPassword" placeholder="Confirm password" required />
+                            <div class="input-focus-line"></div>
+                        </div>
+
+                        <div class="auth-options">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="acceptTerms" required />
+                                <span class="checkmark"></span>
+                                I agree to the <a href="#" class="terms-link">Terms & Conditions</a>
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn-primary auth-submit-btn">
+                            <i class="fas fa-user-plus"></i>
+                            Create Account
+                        </button>
+                    </form>
+
+                    <!-- FORGOT PASSWORD FORM -->
+                    <form id="forgotPasswordForm" class="auth-form" onsubmit="handleForgotPassword(event)" style="display: none;">
+                        <div class="input-group">
+                            <i class="fas fa-envelope"></i>
+                            <input type="email" id="resetEmail" placeholder="Enter your email" required />
+                            <div class="input-focus-line"></div>
+                        </div>
+
+                        <button type="submit" class="btn-primary auth-submit-btn">
+                            <i class="fas fa-paper-plane"></i>
+                            Send Reset Link
+                        </button>
+
+                        <button type="button" class="btn-text" onclick="showAuthForm('login')" style="width: 100%; text-align: center; margin-top: 1rem;">
+                            <i class="fas fa-arrow-left"></i>
+                            Back to Login
+                        </button>
+                    </form>
+
+                    <div class="auth-footer">
+                        <p>By continuing, you agree to FinFlow's Terms of Service and Privacy Policy</p>
+                        <div class="footer-links">
+                            <a href="#">Help Center</a>
+                            <a href="#">Privacy Policy</a>
+                            <a href="#">Terms of Service</a>
+                            <a href="#">Contact Us</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="authLoadingOverlay" class="auth-loading-overlay hidden">
+                <div class="auth-loading-spinner"></div>
+                <p>Loading...</p>
+            </div>
+        `;
+        
+        // Initialize auth functions
+        initializeAuth();
+    }
+
+    function loadApp() {
+        document.getElementById('globalLoading').style.display = 'none';
+        document.getElementById('appContainer').style.display = 'block';
+        
+        // Load main app HTML
+        document.getElementById('appContainer').innerHTML = `
+            <div id="globalMessage" class="message"></div>
+
+            <div class="app">
+                <!-- SIDEBAR -->
+                <aside class="sidebar">
+                    <div class="sidebar-header">
+                        <div class="logo">
+                            <i class="fas fa-chart-line"></i>
+                            <span class="logo-text">FinFlow</span>
+                        </div>
+                    </div>
+                    
+                    <div class="sidebar-nav">
+                        <button class="nav-btn active" onclick="showSection('dashboard')">
+                            <i class="fas fa-home"></i>
+                            <span class="nav-text">Dashboard</span>
+                        </button>
+                        
+                        <button class="nav-btn" onclick="showSection('expenses')">
+                            <i class="fas fa-wallet"></i>
+                            <span class="nav-text">Expenses</span>
+                        </button>
+                        
+                        <button class="nav-btn" onclick="showSection('analytics')">
+                            <i class="fas fa-chart-pie"></i>
+                            <span class="nav-text">Analytics</span>
+                        </button>
+                        
+                        <button class="nav-btn" onclick="showSection('recurring')">
+                            <i class="fas fa-redo"></i>
+                            <span class="nav-text">Recurring</span>
+                        </button>
+                        
+                        <button class="nav-btn" onclick="showSection('bills')">
+                            <i class="fas fa-bell"></i>
+                            <span class="nav-text">Bill Reminders</span>
+                        </button>
+                        
+                        <button class="nav-btn" onclick="showSection('split')">
+                            <i class="fas fa-users"></i>
+                            <span class="nav-text">Split Expenses</span>
+                        </button>
+                    </div>
+                    
+                    <div class="sidebar-footer">
+                        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">
+                            <i class="fas fa-moon" id="themeIcon"></i>
+                            <span class="nav-text">Theme</span>
+                        </button>
+                        
+                        <button class="profile-btn" onclick="toggleProfile()">
+                            <i class="fas fa-user-circle"></i>
+                            <span class="nav-text">Profile</span>
+                        </button>
+                        
+                        <button class="switch-account-btn" onclick="switchAccount()">
+                            <i class="fas fa-exchange-alt"></i>
+                            <span class="nav-text">Switch Account</span>
+                        </button>
+                        
+                        <button class="logout-btn" onclick="logout()">
+                            <i class="fas fa-sign-out-alt"></i>
+                            <span class="nav-text">Logout</span>
+                        </button>
+                    </div>
+                </aside>
+                
+                <!-- MAIN CONTENT -->
+                <main class="main">
+                    <header class="main-header">
+                        <div class="header-left">
+                            <h1 id="username" class="animate__animated animate__fadeIn">Welcome to FinFlow</h1>
+                            <p class="subtitle">Track your expenses, achieve your financial goals</p>
+                        </div>
+                        <div class="header-right">
+                            <div class="currency-selector">
+                                <select id="currencySelector" onchange="changeCurrency(this.value)">
+                                    <option value="INR">₹ INR</option>
+                                    <option value="USD">$ USD</option>
+                                    <option value="EUR">€ EUR</option>
+                                    <option value="GBP">£ GBP</option>
+                                </select>
+                            </div>
+                            <div class="date-display" id="currentDate"></div>
+                            <button class="btn-primary" onclick="toggleProfile()">
+                                <i class="fas fa-user-cog"></i> Profile
+                            </button>
+                        </div>
+                    </header>
+
+                    <!-- SECTIONS WILL BE LOADED DYNAMICALLY -->
+                    <div id="mainSections"></div>
+                </main>
+            </div>
+
+            <!-- MODALS WILL BE LOADED DYNAMICALLY -->
+            <div id="modalsContainer"></div>
+
+            <!-- Loading Overlay -->
+            <div id="loadingOverlay" class="loading-overlay hidden">
+                <div class="loading-spinner"></div>
+                <p>Loading...</p>
+            </div>
+        `;
+        
+        // Initialize main app
+        initializeApp();
+    }
+
+    // ================= SIMPLIFIED VERSION =================
+    // Since this is getting long, I'll give you the SIMPLE solution:
+    
+    // Create this folder structure:
+    // - index.html (SIMPLE redirect page)
+    // - app.html (your main app)
+    // - login.html (your auth page)
+    
+    // In index.html:
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>FinFlow - Redirecting</title>
+        <script>
+            // Check if user is logged in
+            const session = JSON.parse(localStorage.getItem('userSession') || sessionStorage.getItem('userSession'));
+            
+            if (session && session.isAuthenticated) {
+                // Check if session is valid (24 hours)
+                const loginTime = new Date(session.loginTime);
+                const now = new Date();
+                const hoursDiff = (now - loginTime) / (1000 * 60 * 60);
+                
+                if (hoursDiff < 24) {
+                    window.location.href = 'app.html';
+                } else {
+                    // Session expired
+                    localStorage.removeItem('userSession');
+                    sessionStorage.removeItem('userSession');
+                    window.location.href = 'login.html';
+                }
+            } else {
+                window.location.href = 'login.html';
+            }
+        </script>
+    </head>
+    <body>
+        <p>Redirecting to FinFlow...</p>
+    </body>
+    </html>
+  </script>
 </body>
 </html>
