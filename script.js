@@ -2584,7 +2584,20 @@ function updateAllDisplays() {
     updateSplitExpensesDisplay();
     updateBillCalendar();
 }
+// Add these functions at the end of your script.js
+function logout() {
+    if (confirm('Are you sure you want to logout?')) {
+        localStorage.removeItem('userSession');
+        sessionStorage.removeItem('userSession');
+        window.location.href = 'index.html'; // Goes to redirector
+    }
+}
 
+function switchAccount() {
+    if (confirm('Switch to another account? You will be logged out.')) {
+        logout();
+    }
+}
 // Add notification styles
 const style = document.createElement('style');
 style.textContent = `
@@ -2768,3 +2781,4 @@ style.textContent = `
 document.head.appendChild(style);
 
 console.log('Expense Tracker fully loaded!');
+
