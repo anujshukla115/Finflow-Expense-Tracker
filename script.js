@@ -199,7 +199,7 @@ function logout() {
         // Save current account data before logout
         saveAccountData();
         
-        // Clear all user data from localStorage
+        // Clear user data from localStorage (keep theme, currency, accounts)
         localStorage.removeItem('userData');
         localStorage.removeItem('currentAccountId');
         
@@ -1222,17 +1222,31 @@ function updateExistingCategory() {
 async function updateExpenseCategories(oldCategory, newCategory) {
     try {
         // Get all expenses with old category
-        const allExpenses = await ExpenseAPI.getAll();
+        const response = await ExpenseAPI.getAll();
+        
+        if (!response.success) {
+            throw new Error(response.message || 'Failed to load expenses');
+        }
+        
+        const allExpenses = response.data || [];
         const expensesToUpdate = allExpenses.filter(exp => exp.category === oldCategory);
         
         // Update each expense
         for (const expense of expensesToUpdate) {
             expense.category = newCategory;
-            await ExpenseAPI.update(expense._id, expense);
+            const updateResponse = await ExpenseAPI.update(expense._id, expense);
+            
+            if (!updateResponse.success) {
+                throw new Error(updateResponse.message || 'Failed to update expense');
+            }
         }
         
         // Reload expenses
-        expenses = await ExpenseAPI.getAll();
+        const reloadResponse = await ExpenseAPI.getAll();
+        if (!reloadResponse.success) {
+            throw new Error(reloadResponse.message || 'Failed to reload expenses');
+        }
+        expenses = reloadResponse.data || [];
     } catch (error) {
         console.error('Error updating expense categories:', error);
         showNotification('Error updating expenses', 'error');
@@ -1412,7 +1426,7 @@ function closeManageCategoriesModal() {
 }
 
 /* ======================
-   EXPENSE MANAGEMENT
+   EXPENSE MANAGEMENT - FIXED API CALLS
 ====================== */
 async function addExpense() {
     const title = document.getElementById('title').value.trim();
@@ -1435,8 +1449,13 @@ async function addExpense() {
     };
 
     try {
-        const newExpense = await ExpenseAPI.create(expense);
-        expenses.push(newExpense);
+        const response = await ExpenseAPI.create(expense);
+
+        if (!response.success) {
+            throw new Error(response.message || 'Failed to add expense');
+        }
+
+        expenses.push(response.data);
         
         document.getElementById('title').value = '';
         document.getElementById('amount').value = '';
@@ -1448,14 +1467,20 @@ async function addExpense() {
         loadAnalytics();
     } catch (error) {
         console.error('Error adding expense:', error);
-        showNotification('Error adding expense', 'error');
+        showNotification(error.message || 'Error adding expense', 'error');
     }
 }
 
 async function loadExpenses() {
     try {
         // Get all expenses from API
-        expenses = await ExpenseAPI.getAll();
+        const response = await ExpenseAPI.getAll();
+
+        if (!response.success) {
+            throw new Error(response.message || 'Failed to load expenses');
+        }
+
+        expenses = response.data || [];
         
         // Get filter values
         const filterCategory = document.getElementById('filterCategory')?.value || '';
@@ -1478,7 +1503,7 @@ async function loadExpenses() {
         renderExpenseList(filteredExpenses);
     } catch (error) {
         console.error('Error loading expenses:', error);
-        showNotification('Error loading expenses', 'error');
+        showNotification(error.message || 'Error loading expenses', 'error');
         expenses = [];
         renderExpenseList([]);
     }
@@ -1577,14 +1602,19 @@ async function editExpense(id) {
         document.getElementById('expenseDate').value = expense.date.split('T')[0];
         
         // Delete the expense from API
-        await ExpenseAPI.delete(id);
+        const response = await ExpenseAPI.delete(id);
+        
+        if (!response.success) {
+            throw new Error(response.message || 'Failed to delete expense');
+        }
+        
         expenses = expenses.filter(exp => exp._id !== id);
         
         showNotification('Expense loaded for editing', 'info');
         loadExpenses();
     } catch (error) {
         console.error('Error editing expense:', error);
-        showNotification('Error editing expense', 'error');
+        showNotification(error.message || 'Error editing expense', 'error');
     }
 }
 
@@ -1592,7 +1622,12 @@ async function deleteExpense(id) {
     if (!confirm('Are you sure you want to delete this expense?')) return;
     
     try {
-        await ExpenseAPI.delete(id);
+        const response = await ExpenseAPI.delete(id);
+
+        if (!response.success) {
+            throw new Error(response.message || 'Failed to delete expense');
+        }
+
         expenses = expenses.filter(exp => exp._id !== id);
         
         showNotification('Expense deleted successfully', 'success');
@@ -1601,7 +1636,7 @@ async function deleteExpense(id) {
         loadAnalytics();
     } catch (error) {
         console.error('Error deleting expense:', error);
-        showNotification('Error deleting expense', 'error');
+        showNotification(error.message || 'Error deleting expense', 'error');
     }
 }
 
@@ -2636,11 +2671,16 @@ async function markRecurringPaid(id) {
     };
 
     try {
-        const createdExpense = await ExpenseAPI.create(newExpense);
-        expenses.push(createdExpense);
+        const response = await ExpenseAPI.create(newExpense);
+        
+        if (!response.success) {
+            throw new Error(response.message || 'Failed to create recurring expense');
+        }
+        
+        expenses.push(response.data);
     } catch (error) {
         console.error('Error creating recurring expense:', error);
-        showNotification('Error marking recurring expense as paid', 'error');
+        showNotification(error.message || 'Error marking recurring expense as paid', 'error');
         return;
     }
 
@@ -2831,7 +2871,11 @@ async function markBillPaid(id) {
     };
 
     try {
-        await ExpenseAPI.create(expense);
+        const response = await ExpenseAPI.create(expense);
+        
+        if (!response.success) {
+            throw new Error(response.message || 'Failed to create bill expense');
+        }
         
         bill.isPaid = true;
         bill.paidDate = new Date().toISOString();
@@ -2842,7 +2886,7 @@ async function markBillPaid(id) {
         updateBillRemindersDisplay();
     } catch (error) {
         console.error('Error marking bill as paid:', error);
-        showNotification('Error marking bill as paid', 'error');
+        showNotification(error.message || 'Error marking bill as paid', 'error');
     }
 }
 
