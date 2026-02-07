@@ -1,5 +1,5 @@
 // ================= API SERVICE =================
-const API_URL = 'https://finflow-expense-tracker-backend-production.up.railway.app/api';
+const API_URL = "https://finflow-expense-tracker-backend-production.up.railway.app/api";
 
 /* ================= TOKEN HELPERS ================= */
 
@@ -197,3 +197,4 @@ const UserAPI = {
 };
 
 console.log('✅ API Service Loaded Successfully');
+
