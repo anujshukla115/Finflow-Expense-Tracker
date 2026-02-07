@@ -1,191 +1,199 @@
-// API Configuration
+// ================= API SERVICE =================
 const API_URL = 'https://finflow-expense-tracker-backend-production.up.railway.app/api';
 
-// Show/Hide Forms
-function showSignup() {
-  document.getElementById('loginForm').classList.add('hidden');
-  document.getElementById('signupForm').classList.remove('hidden');
-  hideMessage();
+/* ================= TOKEN HELPERS ================= */
+
+// Get JWT token
+function getAuthToken() {
+    return localStorage.getItem('token');
 }
 
-function showLogin() {
-  document.getElementById('signupForm').classList.add('hidden');
-  document.getElementById('loginForm').classList.remove('hidden');
-  hideMessage();
+// Build auth headers
+function getAuthHeaders() {
+    const token = getAuthToken();
+    return {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` })
+    };
 }
 
-// Toggle Password Visibility
-function togglePassword(inputId) {
-  const input = document.getElementById(inputId);
-  const button = input.parentElement.querySelector('.toggle-password i');
-  
-  if (input.type === 'password') {
-    input.type = 'text';
-    button.classList.remove('fa-eye');
-    button.classList.add('fa-eye-slash');
-  } else {
-    input.type = 'password';
-    button.classList.remove('fa-eye-slash');
-    button.classList.add('fa-eye');
-  }
-}
-
-// Show Message
-function showMessage(message, type = 'success') {
-  const alert = document.getElementById('messageAlert');
-  const messageText = document.getElementById('messageText');
-  
-  messageText.textContent = message;
-  alert.className = `message-alert ${type}`;
-  alert.classList.remove('hidden');
-  
-  // Auto hide after 5 seconds
-  setTimeout(() => {
-    hideMessage();
-  }, 5000);
-}
-
-function hideMessage() {
-  const alert = document.getElementById('messageAlert');
-  alert.classList.add('hidden');
-}
-
-// Handle Login
-async function handleLogin(event) {
-  event.preventDefault();
-  
-  const email = document.getElementById('loginEmail').value.trim();
-  const password = document.getElementById('loginPassword').value;
-  const loginBtn = document.getElementById('loginBtn');
-  
-  // Validate
-  if (!email || !password) {
-    showMessage('Please fill in all fields', 'error');
-    return;
-  }
-  
-  // Show loading state
-  loginBtn.classList.add('loading');
-  loginBtn.disabled = true;
-  
-  try {
-    const response = await fetch(`${API_URL}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ email, password })
-    });
-    
+// Handle API response
+async function handleResponse(response) {
     const data = await response.json();
-    
-    if (data.success) {
-      // Store token
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      
-      showMessage('Login successful! Redirecting...', 'success');
-      
-      // Redirect to main app
-      setTimeout(() => {
-        window.location.href = 'index.html';
-      }, 1500);
-    } else {
-      showMessage(data.message || 'Login failed', 'error');
+
+    if (response.status === 401 || data.message === 'No token, authorization denied') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = 'login.html';
+        throw new Error('Unauthorized');
     }
-  } catch (error) {
-    console.error('Login error:', error);
-    showMessage('Unable to connect to server. Please try again.', 'error');
-  } finally {
-    loginBtn.classList.remove('loading');
-    loginBtn.disabled = false;
-  }
+
+    return data;
 }
 
-// Handle Signup
-async function handleSignup(event) {
-  event.preventDefault();
-  
-  const name = document.getElementById('signupName').value.trim();
-  const email = document.getElementById('signupEmail').value.trim();
-  const password = document.getElementById('signupPassword').value;
-  const confirmPassword = document.getElementById('confirmPassword').value;
-  const signupBtn = document.getElementById('signupBtn');
-  
-  // Validate
-  if (!name || !email || !password || !confirmPassword) {
-    showMessage('Please fill in all fields', 'error');
-    return;
-  }
-  
-  if (password.length < 6) {
-    showMessage('Password must be at least 6 characters', 'error');
-    return;
-  }
-  
-  if (password !== confirmPassword) {
-    showMessage('Passwords do not match', 'error');
-    return;
-  }
-  
-  // Show loading state
-  signupBtn.classList.add('loading');
-  signupBtn.disabled = true;
-  
-  try {
-    const response = await fetch(`${API_URL}/auth/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ name, email, password })
-    });
-    
-    const data = await response.json();
-    
-    if (data.success) {
-      // Store token
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      
-      showMessage('Account created successfully! Redirecting...', 'success');
-      
-      // Redirect to main app
-      setTimeout(() => {
-        window.location.href = 'index.html';
-      }, 1500);
-    } else {
-      showMessage(data.message || 'Registration failed', 'error');
+/* ================= AUTH CHECK ================= */
+
+async function checkAuth() {
+    const token = getAuthToken();
+    if (!token) {
+        window.location.href = 'login.html';
+        return false;
     }
-  } catch (error) {
-    console.error('Signup error:', error);
-    showMessage('Unable to connect to server. Please try again.', 'error');
-  } finally {
-    signupBtn.classList.remove('loading');
-    signupBtn.disabled = false;
-  }
+
+    try {
+        const res = await fetch(`${API_URL}/auth/me`, {
+            headers: getAuthHeaders()
+        });
+        const data = await handleResponse(res);
+        return data.user;
+    } catch (err) {
+        console.error('Auth check failed', err);
+        return false;
+    }
 }
 
-// Check if already logged in
-window.addEventListener('DOMContentLoaded', () => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    // Verify token is still valid
-    fetch(`${API_URL}/auth/me`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        window.location.href = 'index.html';
-      }
-    })
-    .catch(() => {
-      // Invalid token, remove it
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-    });
-  }
-});
+// Logout
+function logout() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = 'login.html';
+}
+
+/* ================= EXPENSE API ================= */
+
+const ExpenseAPI = {
+    async getAll() {
+        const res = await fetch(`${API_URL}/expenses`, {
+            headers: getAuthHeaders()
+        });
+        return handleResponse(res);
+    },
+
+    async create(data) {
+        const res = await fetch(`${API_URL}/expenses`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(data)
+        });
+        return handleResponse(res);
+    },
+
+    async update(id, data) {
+        const res = await fetch(`${API_URL}/expenses/${id}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(data)
+        });
+        return handleResponse(res);
+    },
+
+    async delete(id) {
+        const res = await fetch(`${API_URL}/expenses/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        return handleResponse(res);
+    }
+};
+
+/* ================= RECURRING API ================= */
+
+const RecurringAPI = {
+    async getAll() {
+        const res = await fetch(`${API_URL}/recurring`, {
+            headers: getAuthHeaders()
+        });
+        return handleResponse(res);
+    },
+
+    async create(data) {
+        const res = await fetch(`${API_URL}/recurring`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(data)
+        });
+        return handleResponse(res);
+    },
+
+    async delete(id) {
+        const res = await fetch(`${API_URL}/recurring/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        return handleResponse(res);
+    }
+};
+
+/* ================= BILLS API ================= */
+
+const BillsAPI = {
+    async getAll() {
+        const res = await fetch(`${API_URL}/bills`, {
+            headers: getAuthHeaders()
+        });
+        return handleResponse(res);
+    },
+
+    async create(data) {
+        const res = await fetch(`${API_URL}/bills`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(data)
+        });
+        return handleResponse(res);
+    },
+
+    async markPaid(id) {
+        const res = await fetch(`${API_URL}/bills/${id}/pay`, {
+            method: 'PATCH',
+            headers: getAuthHeaders()
+        });
+        return handleResponse(res);
+    }
+};
+
+/* ================= SPLIT API ================= */
+
+const SplitAPI = {
+    async getAll() {
+        const res = await fetch(`${API_URL}/split`, {
+            headers: getAuthHeaders()
+        });
+        return handleResponse(res);
+    },
+
+    async create(data) {
+        const res = await fetch(`${API_URL}/split`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(data)
+        });
+        return handleResponse(res);
+    }
+};
+
+/* ================= CATEGORY API ================= */
+
+const CategoriesAPI = {
+    async getAll() {
+        const res = await fetch(`${API_URL}/categories`, {
+            headers: getAuthHeaders()
+        });
+        return handleResponse(res);
+    }
+};
+
+/* ================= USER API ================= */
+
+const UserAPI = {
+    async updateProfile(data) {
+        const res = await fetch(`${API_URL}/user/profile`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(data)
+        });
+        return handleResponse(res);
+    }
+};
+
+console.log('✅ API Service Loaded Successfully');
