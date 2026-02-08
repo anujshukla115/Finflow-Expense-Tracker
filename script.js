@@ -1,6 +1,7 @@
 // ================= EXPENSE TRACKER SCRIPT =================
 // API Configuration
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'https://finflow-expense-tracker-backend-production.up.railway.app/api';
+
 let authToken = localStorage.getItem('token') || null;
 
 // Configuration
@@ -3464,5 +3465,6 @@ style.textContent = `
 }
 `;
 document.head.appendChild(style);
+
 
 console.log('Expense Tracker fully loaded!');
