@@ -1,7 +1,6 @@
 // ================= EXPENSE TRACKER SCRIPT =================
 // API Configuration
-const API_URL = 'https://finflow-expense-tracker-backend-production.up.railway.app/api';
-
+const API_URL = 'https://finflow-expense-tracker-backend.vercel.app/api';
 let authToken = localStorage.getItem('token') || null;
 
 // Configuration
