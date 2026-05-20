@@ -2,7 +2,7 @@
 
 const CONFIG = {
     // API Configuration
-    API_URL: 'https://finflow-expense-tracker-backend-production.up.railway.app/api',
+    API_URL: 'https://finflow-expense-tracker-backend.vercel.app/api',
     
     // Environment detection
     ENVIRONMENT: window.location.hostname === 'localhost' || 
