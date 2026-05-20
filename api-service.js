@@ -1,12 +1,12 @@
 // ================= API SERVICE =================
 // Production API URL
-const API_URL = 'https://finflow-expense-tracker-backend-production.up.railway.app/api';
+const API_URL = 'https://finflow-expense-tracker-backend.vercel.app/api';
 
 // For local development, use:
 // const API_URL = window.location.hostname === 'localhost' || 
 //                 window.location.hostname === '127.0.0.1'
 //                 ? 'http://localhost:5000/api'
-//                 : 'https://finflow-expense-tracker-backend-production.up.railway.app/api';
+//                 : 'https://finflow-expense-tracker-backend.vercel.app/api';
 
 /* ================= TOKEN HELPERS ================= */
 
