@@ -2655,7 +2655,7 @@ function switchAccount() {
     }
 }
 
-// Add notification styles
+// Add notification styles - FIXED FOR DARK MODE
 const style = document.createElement('style');
 style.textContent = `
 /* Profile modal button alignment */
@@ -2752,14 +2752,14 @@ style.textContent = `
     color: var(--text-primary);
 }
 
+/* ================= NOTIFICATION FIXES FOR DARK MODE ================= */
 .notification {
     position: fixed;
     top: 20px;
     right: 20px;
     padding: 0.75rem 1.25rem;
     border-radius: 8px;
-    background: white;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -2770,6 +2770,10 @@ style.textContent = `
     max-width: 350px;
     border-left: 4px solid #4361ee;
     font-size: 0.875rem;
+    background: #ffffff !important;
+    color: #1a1a2e !important;
+    border: 1px solid #d0d0e0 !important;
+    opacity: 1 !important;
 }
 
 .notification.show {
@@ -2777,22 +2781,85 @@ style.textContent = `
 }
 
 .notification-success {
-    border-left-color: #10b981;
-    background: #d1fae5;
+    border-left-color: #10b981 !important;
+    background: #d1fae5 !important;
+    color: #065f46 !important;
+}
+
+.notification-success i {
+    color: #10b981 !important;
 }
 
 .notification-error {
-    border-left-color: #ef4444;
-    background: #fee2e2;
+    border-left-color: #ef4444 !important;
+    background: #fee2e2 !important;
+    color: #991b1b !important;
+}
+
+.notification-error i {
+    color: #ef4444 !important;
 }
 
 .notification-info {
-    border-left-color: #3b82f6;
-    background: #dbeafe;
+    border-left-color: #3b82f6 !important;
+    background: #dbeafe !important;
+    color: #1e40af !important;
 }
 
-.notification i {
-    font-size: 1.1rem;
+.notification-info i {
+    color: #3b82f6 !important;
+}
+
+/* Dark mode overrides - SOLID backgrounds */
+[data-theme="dark"] .notification {
+    background: #1e293b !important;
+    color: #f1f5f9 !important;
+    border: 1px solid #334155 !important;
+    opacity: 1 !important;
+}
+
+[data-theme="dark"] .notification-success {
+    background: #065f46 !important;
+    color: #d1fae5 !important;
+    border-left-color: #34d399 !important;
+    border: 1px solid #34d399 !important;
+}
+
+[data-theme="dark"] .notification-success i {
+    color: #34d399 !important;
+}
+
+[data-theme="dark"] .notification-error {
+    background: #7f1d1d !important;
+    color: #fecaca !important;
+    border-left-color: #f87171 !important;
+    border: 1px solid #f87171 !important;
+}
+
+[data-theme="dark"] .notification-error i {
+    color: #f87171 !important;
+}
+
+[data-theme="dark"] .notification-info {
+    background: #1e3a5f !important;
+    color: #bfdbfe !important;
+    border-left-color: #60a5fa !important;
+    border: 1px solid #60a5fa !important;
+}
+
+[data-theme="dark"] .notification-info i {
+    color: #60a5fa !important;
+}
+
+[data-theme="dark"] .notification-warning {
+    background: #78350f !important;
+    color: #fef3c7 !important;
+    border-left-color: #fbbf24 !important;
+    border: 1px solid #fbbf24 !important;
+}
+
+[data-theme="dark"] .notification-warning i {
+    color: #fbbf24 !important;
 }
 
 /* Category Management Styles */
