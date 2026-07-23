@@ -13,14 +13,25 @@
 
 <div id="globalMessage" class="message"></div>
 
+<!-- Mobile Menu Toggle -->
+<button class="mobile-menu-toggle" onclick="toggleMobileMenu()" aria-label="Toggle Menu">
+  <i class="fas fa-bars"></i>
+</button>
+<button class="mobile-menu-close" onclick="toggleMobileMenu()" aria-label="Close Menu">
+  <i class="fas fa-times"></i>
+</button>
+
 <div class="app">
   <!-- ================= SIDEBAR ================= -->
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="logo">
         <i class="fas fa-chart-line"></i>
         <span class="logo-text">FinFlow</span>
       </div>
+      <button class="sidebar-close" onclick="toggleMobileMenu()" aria-label="Close Menu">
+        <i class="fas fa-times"></i>
+      </button>
     </div>
     
     <div class="sidebar-nav">
@@ -66,13 +77,11 @@
         <span class="nav-text">Profile</span>
       </button>
       
-      <!-- ADDED: Switch Account Button -->
       <button class="switch-account-btn" onclick="switchAccount()">
         <i class="fas fa-exchange-alt"></i>
         <span class="nav-text">Switch Account</span>
       </button>
       
-      <!-- ADDED: Logout Button -->
       <button class="logout-btn" onclick="logout()">
         <i class="fas fa-sign-out-alt"></i>
         <span class="nav-text">Logout</span>
@@ -85,6 +94,9 @@
     <!-- Header -->
     <header class="main-header">
       <div class="header-left">
+        <button class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Open Menu">
+          <i class="fas fa-bars"></i>
+        </button>
         <h1 id="username" class="animate__animated animate__fadeIn">Welcome to FinFlow</h1>
         <p class="subtitle">Track your expenses, achieve your financial goals</p>
       </div>
@@ -98,7 +110,7 @@
           </select>
         </div>
         <div class="date-display" id="currentDate"></div>
-        <button class="btn-primary" onclick="toggleProfile()">
+        <button class="btn-primary btn-profile" onclick="toggleProfile()">
           <i class="fas fa-user-cog"></i> Profile
         </button>
       </div>
@@ -706,6 +718,9 @@
     <p>Loading...</p>
   </div>
 </div>
+
+<!-- Overlay for mobile menu -->
+<div class="mobile-overlay" id="mobileOverlay" onclick="toggleMobileMenu()"></div>
 
 <!-- SCRIPTS -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
