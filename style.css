@@ -678,11 +678,14 @@ body {
   align-items: center;
   gap: 0.5rem;
   transition: all var(--transition-fast);
+  font-weight: 500;
+  font-size: 0.875rem;
 }
 
 .btn-warning:hover {
   background: #d97706;
   transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .btn-sm {
@@ -1548,26 +1551,6 @@ body {
   color: var(--text-primary);
 }
 
-.split-progress {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border-color);
-}
-
-.progress-bar {
-  height: 8px;
-  background: var(--bg-hover);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-  margin-bottom: 0.5rem;
-}
-
-.progress-fill {
-  height: 100%;
-  border-radius: var(--radius-full);
-  transition: width 0.5s ease;
-}
-
 .split-actions {
   display: flex;
   gap: 0.5rem;
@@ -1587,6 +1570,27 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* ================= SPLIT PROGRESS BAR ================= */
+.split-progress {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.split-progress .progress-bar {
+  height: 8px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.split-progress .progress-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.5s ease;
 }
 
 /* ================= SPLIT FORM ================= */
@@ -2085,6 +2089,26 @@ body {
   .stats-grid {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   }
+  
+  .sidebar {
+    width: 80px;
+    padding: 1rem;
+  }
+  
+  .sidebar .logo-text,
+  .sidebar .nav-text,
+  .sidebar-footer .nav-text {
+    display: none;
+  }
+  
+  .main {
+    margin-left: 80px;
+    max-width: calc(100vw - 80px);
+  }
+  
+  .chart-container {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Mobile - Show hamburger menu */
@@ -2346,6 +2370,34 @@ body {
   .member-amount {
     min-width: 80px;
     font-size: 0.9rem;
+  }
+  
+  /* Split member detail responsive */
+  .split-member-detail {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .member-info {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    width: 100%;
+  }
+  
+  .member-amount {
+    margin-left: auto;
+  }
+  
+  .split-actions {
+    flex-wrap: wrap;
+  }
+  
+  .split-actions button {
+    flex: 1;
+    min-width: 80px;
+    justify-content: center;
+    font-size: 0.75rem;
+    padding: 0.4rem 0.75rem;
   }
 }
 
