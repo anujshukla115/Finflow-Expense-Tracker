@@ -263,6 +263,45 @@ function setupCategoryDropdownListeners() {
     });
 }
 
+/* ================= MOBILE MENU TOGGLE ================= */
+function toggleMobileMenu() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('mobileOverlay');
+    
+    if (!sidebar) return;
+    
+    sidebar.classList.toggle('open');
+    
+    if (overlay) {
+        overlay.classList.toggle('active');
+    }
+    
+    // Toggle body scroll
+    document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+}
+
+// Close mobile menu when clicking a nav link
+document.addEventListener('DOMContentLoaded', function() {
+    const navButtons = document.querySelectorAll('.nav-btn');
+    navButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            if (window.innerWidth <= 768) {
+                toggleMobileMenu();
+            }
+        });
+    });
+    
+    // Close menu on escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar && sidebar.classList.contains('open')) {
+                toggleMobileMenu();
+            }
+        }
+    });
+});
+
 /* ======================
    BASIC UI FUNCTIONS
 ====================== */
