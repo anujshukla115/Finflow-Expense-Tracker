@@ -2034,9 +2034,7 @@ function updateBillCalendar() {
     });
 }
 
-/* ======================
-   SPLIT EXPENSES
-====================== */
+/* ================= SPLIT EXPENSES ================= */
 function showSplitExpenseModal() {
     const modal = document.getElementById('splitExpenseModal');
     if (modal) modal.classList.remove('hidden');
@@ -2113,7 +2111,8 @@ function updateSplitCalculation() {
                         ${isYou ? 'You (You)' : `Person ${i + 1}`}
                     </div>
                     <div class="member-input-group">
-                        <input type="number" class="percentage-input" value="${defaultPercentage.toFixed(2)}" min="0" max="100" oninput="updatePercentageSplit()" /> %
+                        <input type="number" class="percentage-input" value="${defaultPercentage.toFixed(2)}" min="0" max="100" oninput="updatePercentageSplit()" />
+                        %
                     </div>
                     <div class="member-amount">
                         ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(amount)}
@@ -2371,7 +2370,10 @@ async function saveSplitExpense() {
 
 function editSplitExpense(id) {
     const expense = splitExpenses.find(e => e._id === id);
-    if (!expense) return;
+    if (!expense) {
+        showNotification('Split expense not found', 'error');
+        return;
+    }
 
     // Store the expense ID we're editing
     editingSplitExpenseId = id;
@@ -2439,6 +2441,10 @@ function updateSplitExpensesDisplay() {
         const paidMembers = expense.members.filter(m => m.isPaid).length;
         const totalMembers = expense.members.length;
         const isSettled = paidMembers === totalMembers;
+        
+        // Calculate total paid amount
+        const totalPaid = expense.members.filter(m => m.isPaid).reduce((sum, m) => sum + m.amount, 0);
+        const totalAmount = expense.totalAmount;
 
         return `
             <div class="split-card">
@@ -2448,7 +2454,7 @@ function updateSplitExpensesDisplay() {
                         <p class="split-subtitle">Split among ${totalMembers} people • Total: ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(expense.totalAmount)}</p>
                     </div>
                     <span class="split-status ${isSettled ? 'settled' : 'pending'}">
-                        ${isSettled ? 'Settled' : 'Pending'}
+                        ${isSettled ? '✅ Settled' : '⏳ Pending'}
                     </span>
                 </div>
                 
@@ -2459,8 +2465,13 @@ function updateSplitExpensesDisplay() {
                                 <div class="member-info">
                                     <span class="member-name">${member.name}</span>
                                     <span class="member-status ${member.isPaid ? 'paid' : 'unpaid'}">
-                                        ${member.isPaid ? 'Paid' : 'Unpaid'}
+                                        ${member.isPaid ? '✅ Paid' : '⏳ Unpaid'}
                                     </span>
+                                    ${!member.isPaid && !isSettled ? `
+                                        <button class="btn-success btn-sm" onclick="markSplitMemberPaid('${expense._id}', ${index})">
+                                            <i class="fas fa-check"></i> Mark Paid
+                                        </button>
+                                    ` : ''}
                                 </div>
                                 <div class="member-amount">
                                     ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(member.amount)}
@@ -2468,6 +2479,17 @@ function updateSplitExpensesDisplay() {
                             </div>
                         `).join('')}
                     </div>
+                    ${!isSettled ? `
+                        <div class="split-progress" style="margin-top: 1rem;">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${(totalPaid / totalAmount) * 100}%; background: var(--success);"></div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-secondary);">
+                                <span>Paid: ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(totalPaid)}</span>
+                                <span>Remaining: ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(totalAmount - totalPaid)}</span>
+                            </div>
+                        </div>
+                    ` : ''}
                 </div>
                 
                 <div class="split-actions">
@@ -2476,9 +2498,13 @@ function updateSplitExpensesDisplay() {
                     </button>
                     ${!isSettled ? `
                         <button class="btn-success" onclick="settleSplitExpense('${expense._id}')">
-                            <i class="fas fa-check"></i> Settle Up
+                            <i class="fas fa-check-circle"></i> Settle All
                         </button>
-                    ` : ''}
+                    ` : `
+                        <button class="btn-warning" onclick="unsettleSplitExpense('${expense._id}')" style="background: var(--warning); color: white; border: none; padding: 0.5rem 1rem; border-radius: var(--radius-md); cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-undo"></i> Unsettle
+                        </button>
+                    `}
                     <button class="btn-danger" onclick="deleteSplitExpense('${expense._id}')">
                         <i class="fas fa-trash"></i> Delete
                     </button>
@@ -2490,7 +2516,8 @@ function updateSplitExpensesDisplay() {
     container.innerHTML = html;
 }
 
-async function toggleMemberPayment(expenseId, memberIndex) {
+// NEW FUNCTION: Mark individual member as paid
+async function markSplitMemberPaid(expenseId, memberIndex) {
     try {
         const data = await apiRequest(`/split/${expenseId}/member/${memberIndex}/pay`, {
             method: 'PATCH'
@@ -2501,19 +2528,37 @@ async function toggleMemberPayment(expenseId, memberIndex) {
             if (index !== -1) {
                 splitExpenses[index] = data.splitExpense;
             }
-            showNotification(data.message, 'success');
+            showNotification('Member marked as paid!', 'success');
             updateSplitExpensesDisplay();
         }
     } catch (error) {
-        showNotification('Failed to update member payment status', 'error');
+        console.error('Error marking member paid:', error);
+        showNotification(error.message || 'Failed to mark member as paid', 'error');
     }
 }
 
+// UPDATED: Settle Split Expense - marks ALL members as paid
 async function settleSplitExpense(id) {
     const expense = splitExpenses.find(e => e._id === id);
-    if (!expense) return;
+    if (!expense) {
+        showNotification('Split expense not found', 'error');
+        return;
+    }
+
+    // Check if already settled
+    const allPaid = expense.members.every(m => m.isPaid);
+    if (allPaid) {
+        showNotification('All members are already paid!', 'info');
+        return;
+    }
+
+    // Confirm with user
+    const confirmSettle = confirm(`Are you sure you want to mark ALL members as paid for "${expense.title}"?`);
+    if (!confirmSettle) return;
 
     try {
+        showNotification('Settling expense...', 'info');
+        
         const data = await apiRequest(`/split/${id}/settle`, {
             method: 'PATCH'
         });
@@ -2523,15 +2568,34 @@ async function settleSplitExpense(id) {
             if (index !== -1) {
                 splitExpenses[index] = data.splitExpense;
             }
-            showNotification(data.message, 'success');
+            showNotification('✅ All members settled successfully!', 'success');
             updateSplitExpensesDisplay();
         }
     } catch (error) {
-        showNotification('Failed to settle expense', 'error');
+        console.error('Error settling expense:', error);
+        showNotification(error.message || 'Failed to settle expense. Please try again.', 'error');
     }
 }
 
+// UPDATED: Unsettle Split Expense - marks ALL members as unpaid
 async function unsettleSplitExpense(id) {
+    const expense = splitExpenses.find(e => e._id === id);
+    if (!expense) {
+        showNotification('Split expense not found', 'error');
+        return;
+    }
+
+    // Check if already unsettled
+    const allUnpaid = expense.members.every(m => !m.isPaid);
+    if (allUnpaid) {
+        showNotification('All members are already unpaid!', 'info');
+        return;
+    }
+
+    // Confirm with user
+    const confirmUnsettle = confirm(`Are you sure you want to mark ALL members as unpaid for "${expense.title}"?`);
+    if (!confirmUnsettle) return;
+
     try {
         const data = await apiRequest(`/split/${id}/unsettle`, {
             method: 'PATCH'
@@ -2542,16 +2606,18 @@ async function unsettleSplitExpense(id) {
             if (index !== -1) {
                 splitExpenses[index] = data.splitExpense;
             }
-            showNotification(data.message, 'success');
+            showNotification('All members marked as unpaid', 'success');
             updateSplitExpensesDisplay();
         }
     } catch (error) {
-        showNotification('Failed to unsettle expense', 'error');
+        console.error('Error unsettling expense:', error);
+        showNotification(error.message || 'Failed to unsettle expense', 'error');
     }
 }
 
+// UPDATED: Delete Split Expense
 async function deleteSplitExpense(id) {
-    if (!confirm('Are you sure you want to delete this split expense?')) return;
+    if (!confirm('Are you sure you want to delete this split expense? This action cannot be undone.')) return;
     
     try {
         const data = await apiRequest(`/split/${id}`, {
@@ -2560,11 +2626,12 @@ async function deleteSplitExpense(id) {
 
         if (data.success) {
             splitExpenses = splitExpenses.filter(e => e._id !== id);
-            showNotification(data.message, 'success');
+            showNotification('Split expense deleted successfully', 'success');
             updateSplitExpensesDisplay();
         }
     } catch (error) {
-        showNotification('Failed to delete split expense', 'error');
+        console.error('Error deleting split expense:', error);
+        showNotification(error.message || 'Failed to delete split expense', 'error');
     }
 }
 
