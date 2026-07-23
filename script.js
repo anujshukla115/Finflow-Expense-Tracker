@@ -247,16 +247,18 @@ function toggleMobileMenu() {
     const overlay = document.querySelector('.sidebar-overlay');
     const toggleBtn = document.querySelector('.mobile-menu-toggle i');
     
-    if (!sidebar || !overlay || !toggleBtn) return;
+    if (!sidebar) return;
     
     sidebar.classList.toggle('open');
-    overlay.classList.toggle('active');
+    if (overlay) overlay.classList.toggle('active');
     
     // Change icon
-    if (sidebar.classList.contains('open')) {
-        toggleBtn.className = 'fas fa-times';
-    } else {
-        toggleBtn.className = 'fas fa-bars';
+    if (toggleBtn) {
+        if (sidebar.classList.contains('open')) {
+            toggleBtn.className = 'fas fa-times';
+        } else {
+            toggleBtn.className = 'fas fa-bars';
+        }
     }
 }
 
@@ -285,6 +287,19 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('resize', function() {
         if (window.innerWidth > 768) {
             closeMobileMenu();
+        }
+    });
+    
+    // Also close when clicking outside the sidebar on mobile
+    document.addEventListener('click', function(e) {
+        const sidebar = document.querySelector('.sidebar');
+        const toggleBtn = document.querySelector('.mobile-menu-toggle');
+        const overlay = document.querySelector('.sidebar-overlay');
+        
+        if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains('open')) {
+            if (!sidebar.contains(e.target) && !toggleBtn.contains(e.target)) {
+                closeMobileMenu();
+            }
         }
     });
 });
@@ -2525,10 +2540,12 @@ async function toggleMemberPayment(expenseId, memberIndex) {
     }
 }
 
+// FIXED: Settle Split Expense - Marks all members as paid
 async function settleSplitExpense(id) {
-    const expense = splitExpenses.find(e => e._id === id);
-    if (!expense) return;
-
+    if (!confirm('Are you sure you want to settle this split expense? This will mark all members as paid.')) {
+        return;
+    }
+    
     try {
         const data = await apiRequest(`/split/${id}/settle`, {
             method: 'PATCH'
@@ -2539,15 +2556,24 @@ async function settleSplitExpense(id) {
             if (index !== -1) {
                 splitExpenses[index] = data.splitExpense;
             }
-            showNotification(data.message, 'success');
+            showNotification(data.message || 'Split expense settled successfully!', 'success');
             updateSplitExpensesDisplay();
+            updateAllDisplays();
+        } else {
+            showNotification(data.message || 'Failed to settle expense', 'error');
         }
     } catch (error) {
-        showNotification('Failed to settle expense', 'error');
+        console.error('Settle split expense error:', error);
+        showNotification(error.message || 'Failed to settle expense', 'error');
     }
 }
 
+// FIXED: Unsettle Split Expense - Marks all members as unpaid
 async function unsettleSplitExpense(id) {
+    if (!confirm('Are you sure you want to unsettle this split expense? This will mark all members as unpaid.')) {
+        return;
+    }
+    
     try {
         const data = await apiRequest(`/split/${id}/unsettle`, {
             method: 'PATCH'
@@ -2558,8 +2584,12 @@ async function unsettleSplitExpense(id) {
             if (index !== -1) {
                 splitExpenses[index] = data.splitExpense;
             }
-            showNotification(data.message, 'success');
+            showNotification(data.message || 'Split expense unsettled successfully!', 'success');
             updateSplitExpensesDisplay();
+            updateAllDisplays();
+        } catch (error) {
+            console.error('Unsettle split expense error:', error);
+            showNotification(error.message || 'Failed to unsettle expense', 'error');
         }
     } catch (error) {
         showNotification('Failed to unsettle expense', 'error');
@@ -2715,35 +2745,6 @@ function switchAccount() {
     if (confirm('Switch to another account? You will be logged out.')) {
         logout();
     }
-}
-
-// ================= MOBILE MENU FUNCTIONS =================
-function toggleMobileMenu() {
-    const sidebar = document.querySelector('.sidebar');
-    const overlay = document.querySelector('.sidebar-overlay');
-    const toggleBtn = document.querySelector('.mobile-menu-toggle i');
-    
-    if (!sidebar || !overlay || !toggleBtn) return;
-    
-    sidebar.classList.toggle('open');
-    overlay.classList.toggle('active');
-    
-    // Change icon
-    if (sidebar.classList.contains('open')) {
-        toggleBtn.className = 'fas fa-times';
-    } else {
-        toggleBtn.className = 'fas fa-bars';
-    }
-}
-
-function closeMobileMenu() {
-    const sidebar = document.querySelector('.sidebar');
-    const overlay = document.querySelector('.sidebar-overlay');
-    const toggleBtn = document.querySelector('.mobile-menu-toggle i');
-    
-    if (sidebar) sidebar.classList.remove('open');
-    if (overlay) overlay.classList.remove('active');
-    if (toggleBtn) toggleBtn.className = 'fas fa-bars';
 }
 
 // Add notification styles - FIXED FOR DARK MODE
