@@ -297,11 +297,6 @@ function showSection(id) {
         navButtons[btnIndex].classList.add('active');
     }
     
-    // Close mobile menu on nav click
-    if (window.innerWidth <= 768) {
-        toggleMobileMenu();
-    }
-    
     // Load data for the section
     switch(id) {
         case 'dashboard':
@@ -2337,10 +2332,7 @@ async function saveSplitExpense() {
 
 function editSplitExpense(id) {
     const expense = splitExpenses.find(e => e._id === id);
-    if (!expense) {
-        showNotification('Split expense not found', 'error');
-        return;
-    }
+    if (!expense) return;
 
     // Store the expense ID we're editing
     editingSplitExpenseId = id;
@@ -2408,10 +2400,6 @@ function updateSplitExpensesDisplay() {
         const paidMembers = expense.members.filter(m => m.isPaid).length;
         const totalMembers = expense.members.length;
         const isSettled = paidMembers === totalMembers;
-        
-        // Calculate total paid amount
-        const totalPaid = expense.members.filter(m => m.isPaid).reduce((sum, m) => sum + m.amount, 0);
-        const totalAmount = expense.totalAmount;
 
         return `
             <div class="split-card">
@@ -2421,7 +2409,7 @@ function updateSplitExpensesDisplay() {
                         <p class="split-subtitle">Split among ${totalMembers} people • Total: ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(expense.totalAmount)}</p>
                     </div>
                     <span class="split-status ${isSettled ? 'settled' : 'pending'}">
-                        ${isSettled ? '✅ Settled' : '⏳ Pending'}
+                        ${isSettled ? 'Settled' : 'Pending'}
                     </span>
                 </div>
                 
@@ -2432,18 +2420,8 @@ function updateSplitExpensesDisplay() {
                                 <div class="member-info">
                                     <span class="member-name">${member.name}</span>
                                     <span class="member-status ${member.isPaid ? 'paid' : 'unpaid'}">
-                                        ${member.isPaid ? '✅ Paid' : '⏳ Unpaid'}
+                                        ${member.isPaid ? 'Paid' : 'Unpaid'}
                                     </span>
-                                    ${!member.isPaid && !isSettled ? `
-                                        <button class="btn-success btn-sm" onclick="markSplitMemberPaid('${expense._id}', ${index})">
-                                            <i class="fas fa-check"></i> Mark Paid
-                                        </button>
-                                    ` : ''}
-                                    ${member.isPaid && isSettled ? `
-                                        <button class="btn-warning btn-sm" onclick="markSplitMemberUnpaid('${expense._id}', ${index})">
-                                            <i class="fas fa-undo"></i> Mark Unpaid
-                                        </button>
-                                    ` : ''}
                                 </div>
                                 <div class="member-amount">
                                     ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(member.amount)}
@@ -2451,17 +2429,6 @@ function updateSplitExpensesDisplay() {
                             </div>
                         `).join('')}
                     </div>
-                    ${!isSettled ? `
-                        <div class="split-progress">
-                            <div class="progress-bar">
-                                <div class="progress-fill" style="width: ${totalAmount > 0 ? (totalPaid / totalAmount) * 100 : 0}%; background: var(--success);"></div>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-secondary);">
-                                <span>Paid: ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(totalPaid)}</span>
-                                <span>Remaining: ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(totalAmount - totalPaid)}</span>
-                            </div>
-                        </div>
-                    ` : ''}
                 </div>
                 
                 <div class="split-actions">
@@ -2470,13 +2437,9 @@ function updateSplitExpensesDisplay() {
                     </button>
                     ${!isSettled ? `
                         <button class="btn-success" onclick="settleSplitExpense('${expense._id}')">
-                            <i class="fas fa-check-circle"></i> Settle All
+                            <i class="fas fa-check"></i> Settle Up
                         </button>
-                    ` : `
-                        <button class="btn-warning" onclick="unsettleSplitExpense('${expense._id}')">
-                            <i class="fas fa-undo"></i> Unsettle
-                        </button>
-                    `}
+                    ` : ''}
                     <button class="btn-danger" onclick="deleteSplitExpense('${expense._id}')">
                         <i class="fas fa-trash"></i> Delete
                     </button>
@@ -2488,8 +2451,7 @@ function updateSplitExpensesDisplay() {
     container.innerHTML = html;
 }
 
-// NEW: Mark individual member as paid
-async function markSplitMemberPaid(expenseId, memberIndex) {
+async function toggleMemberPayment(expenseId, memberIndex) {
     try {
         const data = await apiRequest(`/split/${expenseId}/member/${memberIndex}/pay`, {
             method: 'PATCH'
@@ -2500,63 +2462,19 @@ async function markSplitMemberPaid(expenseId, memberIndex) {
             if (index !== -1) {
                 splitExpenses[index] = data.splitExpense;
             }
-            const member = data.splitExpense.members[memberIndex];
-            showNotification(`✅ ${member.name} marked as paid!`, 'success');
+            showNotification(data.message, 'success');
             updateSplitExpensesDisplay();
-        } else {
-            showNotification(data.message || 'Failed to mark member as paid', 'error');
         }
     } catch (error) {
-        console.error('Error marking member paid:', error);
-        showNotification(error.message || 'Failed to mark member as paid', 'error');
-    }
-}
-
-// NEW: Mark individual member as unpaid
-async function markSplitMemberUnpaid(expenseId, memberIndex) {
-    try {
-        const data = await apiRequest(`/split/${expenseId}/member/${memberIndex}/pay`, {
-            method: 'PATCH'
-        });
-
-        if (data.success) {
-            const index = splitExpenses.findIndex(e => e._id === expenseId);
-            if (index !== -1) {
-                splitExpenses[index] = data.splitExpense;
-            }
-            const member = data.splitExpense.members[memberIndex];
-            showNotification(`↩️ ${member.name} marked as unpaid`, 'info');
-            updateSplitExpensesDisplay();
-        } else {
-            showNotification(data.message || 'Failed to mark member as unpaid', 'error');
-        }
-    } catch (error) {
-        console.error('Error marking member unpaid:', error);
-        showNotification(error.message || 'Failed to mark member as unpaid', 'error');
+        showNotification('Failed to update member payment status', 'error');
     }
 }
 
 async function settleSplitExpense(id) {
     const expense = splitExpenses.find(e => e._id === id);
-    if (!expense) {
-        showNotification('Split expense not found', 'error');
-        return;
-    }
-
-    // Check if already settled
-    const allPaid = expense.members.every(m => m.isPaid);
-    if (allPaid) {
-        showNotification('All members are already paid!', 'info');
-        return;
-    }
-
-    // Confirm with user
-    const confirmSettle = confirm(`Are you sure you want to mark ALL members as paid for "${expense.title}"?`);
-    if (!confirmSettle) return;
+    if (!expense) return;
 
     try {
-        showNotification('Settling expense...', 'info');
-        
         const data = await apiRequest(`/split/${id}/settle`, {
             method: 'PATCH'
         });
@@ -2566,73 +2484,16 @@ async function settleSplitExpense(id) {
             if (index !== -1) {
                 splitExpenses[index] = data.splitExpense;
             }
-            showNotification('✅ All members settled successfully!', 'success');
+            showNotification(data.message, 'success');
             updateSplitExpensesDisplay();
-        } else {
-            showNotification(data.message || 'Failed to settle expense', 'error');
         }
     } catch (error) {
-        console.error('Error settling expense:', error);
-        // Try alternative approach - mark each member individually
-        try {
-            showNotification('Trying alternative method...', 'info');
-            let allSettled = true;
-            let settledCount = 0;
-            
-            for (let i = 0; i < expense.members.length; i++) {
-                if (!expense.members[i].isPaid) {
-                    try {
-                        const result = await apiRequest(`/split/${id}/member/${i}/pay`, {
-                            method: 'PATCH'
-                        });
-                        if (result.success) {
-                            settledCount++;
-                            const idx = splitExpenses.findIndex(e => e._id === id);
-                            if (idx !== -1) {
-                                splitExpenses[idx] = result.splitExpense;
-                            }
-                        } else {
-                            allSettled = false;
-                        }
-                    } catch (err) {
-                        allSettled = false;
-                    }
-                }
-            }
-            
-            if (allSettled || settledCount > 0) {
-                showNotification(`✅ ${settledCount} members settled successfully!`, 'success');
-                updateSplitExpensesDisplay();
-            } else {
-                showNotification('Failed to settle members. Please try again.', 'error');
-            }
-        } catch (fallbackError) {
-            showNotification('Failed to settle expense. Please try again.', 'error');
-        }
+        showNotification('Failed to settle expense', 'error');
     }
 }
 
 async function unsettleSplitExpense(id) {
-    const expense = splitExpenses.find(e => e._id === id);
-    if (!expense) {
-        showNotification('Split expense not found', 'error');
-        return;
-    }
-
-    // Check if already unsettled
-    const allUnpaid = expense.members.every(m => !m.isPaid);
-    if (allUnpaid) {
-        showNotification('All members are already unpaid!', 'info');
-        return;
-    }
-
-    // Confirm with user
-    const confirmUnsettle = confirm(`Are you sure you want to mark ALL members as unpaid for "${expense.title}"?`);
-    if (!confirmUnsettle) return;
-
     try {
-        showNotification('Unsettling expense...', 'info');
-        
         const data = await apiRequest(`/split/${id}/unsettle`, {
             method: 'PATCH'
         });
@@ -2642,54 +2503,16 @@ async function unsettleSplitExpense(id) {
             if (index !== -1) {
                 splitExpenses[index] = data.splitExpense;
             }
-            showNotification('All members marked as unpaid', 'success');
+            showNotification(data.message, 'success');
             updateSplitExpensesDisplay();
-        } else {
-            showNotification(data.message || 'Failed to unsettle expense', 'error');
         }
     } catch (error) {
-        console.error('Error unsettling expense:', error);
-        // Try alternative approach - mark each member individually
-        try {
-            showNotification('Trying alternative method...', 'info');
-            let allUnsettled = true;
-            let unsettledCount = 0;
-            
-            for (let i = 0; i < expense.members.length; i++) {
-                if (expense.members[i].isPaid) {
-                    try {
-                        const result = await apiRequest(`/split/${id}/member/${i}/pay`, {
-                            method: 'PATCH'
-                        });
-                        if (result.success) {
-                            unsettledCount++;
-                            const idx = splitExpenses.findIndex(e => e._id === id);
-                            if (idx !== -1) {
-                                splitExpenses[idx] = result.splitExpense;
-                            }
-                        } else {
-                            allUnsettled = false;
-                        }
-                    } catch (err) {
-                        allUnsettled = false;
-                    }
-                }
-            }
-            
-            if (allUnsettled || unsettledCount > 0) {
-                showNotification(`✅ ${unsettledCount} members unsettled successfully!`, 'success');
-                updateSplitExpensesDisplay();
-            } else {
-                showNotification('Failed to unsettle members. Please try again.', 'error');
-            }
-        } catch (fallbackError) {
-            showNotification('Failed to unsettle expense. Please try again.', 'error');
-        }
+        showNotification('Failed to unsettle expense', 'error');
     }
 }
 
 async function deleteSplitExpense(id) {
-    if (!confirm('Are you sure you want to delete this split expense? This action cannot be undone.')) return;
+    if (!confirm('Are you sure you want to delete this split expense?')) return;
     
     try {
         const data = await apiRequest(`/split/${id}`, {
@@ -2698,14 +2521,11 @@ async function deleteSplitExpense(id) {
 
         if (data.success) {
             splitExpenses = splitExpenses.filter(e => e._id !== id);
-            showNotification('Split expense deleted successfully', 'success');
+            showNotification(data.message, 'success');
             updateSplitExpensesDisplay();
-        } else {
-            showNotification(data.message || 'Failed to delete split expense', 'error');
         }
     } catch (error) {
-        console.error('Error deleting split expense:', error);
-        showNotification(error.message || 'Failed to delete split expense', 'error');
+        showNotification('Failed to delete split expense', 'error');
     }
 }
 
@@ -2841,46 +2661,6 @@ function switchAccount() {
         logout();
     }
 }
-
-// ================= MOBILE MENU TOGGLE =================
-function toggleMobileMenu() {
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('mobileOverlay');
-    
-    if (!sidebar) return;
-    
-    sidebar.classList.toggle('open');
-    
-    if (overlay) {
-        overlay.classList.toggle('active');
-    }
-    
-    // Toggle body scroll
-    document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
-}
-
-// Close mobile menu when clicking a nav link or pressing Escape
-document.addEventListener('DOMContentLoaded', function() {
-    const navButtons = document.querySelectorAll('.nav-btn');
-    navButtons.forEach(btn => {
-        btn.addEventListener('click', function() {
-            if (window.innerWidth <= 768) {
-                // Close menu after a small delay to allow the section to show
-                setTimeout(toggleMobileMenu, 300);
-            }
-        });
-    });
-    
-    // Close menu on escape key
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            const sidebar = document.getElementById('sidebar');
-            if (sidebar && sidebar.classList.contains('open')) {
-                toggleMobileMenu();
-            }
-        }
-    });
-});
 
 // Add notification styles - FIXED FOR DARK MODE
 const style = document.createElement('style');
@@ -3756,113 +3536,8 @@ style.textContent = `
 .summary-difference:last-child {
     border-bottom: none;
 }
-
-/* ================= SPLIT PROGRESS BAR ================= */
-.split-progress {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border-color);
-}
-
-.split-progress .progress-bar {
-    height: 8px;
-    background: var(--bg-hover);
-    border-radius: var(--radius-full);
-    overflow: hidden;
-    margin-bottom: 0.5rem;
-}
-
-.split-progress .progress-fill {
-    height: 100%;
-    border-radius: var(--radius-full);
-    transition: width 0.5s ease;
-}
-
-/* ================= WARNING BUTTON ================= */
-.btn-warning {
-    background: var(--warning);
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    transition: all var(--transition-fast);
-    font-weight: 500;
-    font-size: 0.875rem;
-}
-
-.btn-warning:hover {
-    background: #d97706;
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
-}
-
-/* ================= SPLIT STATUS UPDATES ================= */
-.split-status {
-    padding: 0.25rem 0.75rem;
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    white-space: nowrap;
-}
-
-.split-status.settled {
-    background: var(--success-light);
-    color: var(--success);
-}
-
-.split-status.pending {
-    background: var(--warning-light);
-    color: var(--warning);
-}
-
-/* ================= SPLIT MEMBER DETAIL UPDATES ================= */
-.split-member-detail .btn-success.btn-sm,
-.split-member-detail .btn-warning.btn-sm {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.7rem;
-    border-radius: var(--radius-sm);
-}
-
-.split-member-detail .btn-success.btn-sm i,
-.split-member-detail .btn-warning.btn-sm i {
-    font-size: 0.6rem;
-}
-
-/* ================= RESPONSIVE FIXES FOR SPLIT ================= */
-@media (max-width: 768px) {
-    .split-member-detail {
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
-    
-    .member-info {
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        width: 100%;
-    }
-    
-    .member-amount {
-        margin-left: auto;
-    }
-    
-    .split-actions {
-        flex-wrap: wrap;
-    }
-    
-    .split-actions button {
-        flex: 1;
-        min-width: 80px;
-        justify-content: center;
-        font-size: 0.75rem;
-        padding: 0.4rem 0.75rem;
-    }
-}
 `;
 document.head.appendChild(style);
+
 
 console.log('Expense Tracker fully loaded!');
