@@ -240,6 +240,56 @@ document.addEventListener('DOMContentLoaded', async function() {
 });
 
 /* ======================
+   MOBILE MENU FUNCTIONS
+====================== */
+function toggleMobileMenu() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const toggleBtn = document.querySelector('.mobile-menu-toggle i');
+    
+    if (!sidebar || !overlay || !toggleBtn) return;
+    
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+    
+    // Change icon
+    if (sidebar.classList.contains('open')) {
+        toggleBtn.className = 'fas fa-times';
+    } else {
+        toggleBtn.className = 'fas fa-bars';
+    }
+}
+
+function closeMobileMenu() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const toggleBtn = document.querySelector('.mobile-menu-toggle i');
+    
+    if (sidebar) sidebar.classList.remove('open');
+    if (overlay) overlay.classList.remove('active');
+    if (toggleBtn) toggleBtn.className = 'fas fa-bars';
+}
+
+// Close mobile menu when a nav button is clicked
+document.addEventListener('DOMContentLoaded', function() {
+    const navButtons = document.querySelectorAll('.nav-btn');
+    navButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            if (window.innerWidth <= 768) {
+                closeMobileMenu();
+            }
+        });
+    });
+    
+    // Close menu on window resize to desktop
+    window.addEventListener('resize', function() {
+        if (window.innerWidth > 768) {
+            closeMobileMenu();
+        }
+    });
+});
+
+/* ======================
    SETUP CATEGORY DROPDOWN LISTENERS
 ====================== */
 function setupCategoryDropdownListeners() {
@@ -295,6 +345,11 @@ function showSection(id) {
     const navButtons = document.querySelectorAll('.nav-btn');
     if (navButtons[btnIndex]) {
         navButtons[btnIndex].classList.add('active');
+    }
+    
+    // Close mobile menu on section change
+    if (window.innerWidth <= 768) {
+        closeMobileMenu();
     }
     
     // Load data for the section
@@ -2660,6 +2715,35 @@ function switchAccount() {
     if (confirm('Switch to another account? You will be logged out.')) {
         logout();
     }
+}
+
+// ================= MOBILE MENU FUNCTIONS =================
+function toggleMobileMenu() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const toggleBtn = document.querySelector('.mobile-menu-toggle i');
+    
+    if (!sidebar || !overlay || !toggleBtn) return;
+    
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+    
+    // Change icon
+    if (sidebar.classList.contains('open')) {
+        toggleBtn.className = 'fas fa-times';
+    } else {
+        toggleBtn.className = 'fas fa-bars';
+    }
+}
+
+function closeMobileMenu() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const toggleBtn = document.querySelector('.mobile-menu-toggle i');
+    
+    if (sidebar) sidebar.classList.remove('open');
+    if (overlay) overlay.classList.remove('active');
+    if (toggleBtn) toggleBtn.className = 'fas fa-bars';
 }
 
 // Add notification styles - FIXED FOR DARK MODE
