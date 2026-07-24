@@ -1,479 +1,2048 @@
-// ================= EXPENSE TRACKER SCRIPT =================
-// API Configuration
-const API_URL = 'https://finflow-expense-tracker-backend.vercel.app/api';
-let authToken = localStorage.getItem('token') || null;
+/**
+ * ===================================================================
+ * FINFLOW - COMPLETE JAVASCRIPT APPLICATION
+ * Version: 1.0.0
+ * Description: Complete JavaScript for FinFlow Expense Tracker
+ * ===================================================================
+ */
 
-// Configuration
-let userId = null;
-let monthlyIncome = 0;
-let userCurrency = 'INR';
-let currentUser = null;
+// ===================================================================
+// 1. CONFIGURATION & CONSTANTS
+// ===================================================================
 
-// Data storage (now loaded from API)
-let expenses = [];
-let recurringExpenses = [];
-let billReminders = [];
-let splitExpenses = [];
-let customCategories = [];
-
-// Editing state variables
-let editingExpenseId = null;
-let editingCategoryIndex = -1;
-let editingSplitExpenseId = null; // Added for split expense editing
-
-// Currency symbols
-const CURRENCY_SYMBOLS = {
-    'INR': '₹',
-    'USD': '$',
-    'EUR': '€',
-    'GBP': '£'
+/**
+ * API Configuration
+ * Production and development API URLs
+ */
+const CONFIG = {
+    API_URL: 'https://finflow-expense-tracker-backend.vercel.app/api',
+    APP_NAME: 'FinFlow',
+    VERSION: '1.0.0',
+    
+    // Currency symbols
+    CURRENCY_SYMBOLS: {
+        'INR': '₹',
+        'USD': '$',
+        'EUR': '€',
+        'GBP': '£',
+        'JPY': '¥',
+        'CAD': 'C$',
+        'AUD': 'A$',
+        'CNY': '¥',
+        'SGD': 'S$'
+    },
+    
+    // Default categories
+    DEFAULT_CATEGORIES: [
+        { name: 'Food & Dining', icon: '🍽️', color: '#FF6B6B' },
+        { name: 'Transportation', icon: '🚗', color: '#4ECDC4' },
+        { name: 'Shopping', icon: '🛍️', color: '#FFD166' },
+        { name: 'Entertainment', icon: '🎬', color: '#06D6A0' },
+        { name: 'Bills & Utilities', icon: '💡', color: '#118AB2' },
+        { name: 'Healthcare', icon: '🏥', color: '#EF476F' },
+        { name: 'Education', icon: '📚', color: '#073B4C' },
+        { name: 'Income', icon: '💰', color: '#2A9D8F' },
+        { name: 'Others', icon: '📝', color: '#6C757D' }
+    ],
+    
+    // Recurring frequencies
+    FREQUENCIES: ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'],
+    
+    // Date format options
+    DATE_FORMAT: 'YYYY-MM-DD',
+    DISPLAY_DATE_FORMAT: 'MMM DD, YYYY',
+    
+    // Storage keys
+    STORAGE_KEYS: {
+        TOKEN: 'token',
+        USER: 'user',
+        THEME: 'theme',
+        CURRENCY: 'currency'
+    }
 };
 
-// Default categories with icons
-const DEFAULT_CATEGORIES = [
-    { name: 'Food', icon: '🍔', color: '#4361ee' },
-    { name: 'Transport', icon: '🚗', color: '#3a0ca3' },
-    { name: 'Bills', icon: '📄', color: '#7209b7' },
-    { name: 'Shopping', icon: '🛍️', color: '#4cc9f0' },
-    { name: 'Entertainment', icon: '🎬', color: '#4cc9f0' },
-    { name: 'Healthcare', icon: '🏥', color: '#560bad' },
-    { name: 'Education', icon: '📚', color: '#b5179e' },
-    { name: 'Other', icon: '📦', color: '#480ca8' }
-];
+// ===================================================================
+// 2. STATE MANAGEMENT
+// ===================================================================
 
-// Theme management
-let currentTheme = localStorage.getItem('theme') || 'light';
+/**
+ * Application State
+ * Central state management for the entire application
+ */
+const AppState = {
+    // User data
+    user: null,
+    userId: null,
+    authToken: localStorage.getItem(CONFIG.STORAGE_KEYS.TOKEN) || null,
+    
+    // Financial data
+    expenses: [],
+    categories: [],
+    recurringExpenses: [],
+    billReminders: [],
+    splitExpenses: [],
+    
+    // Settings
+    currency: 'INR',
+    monthlyIncome: 0,
+    theme: localStorage.getItem(CONFIG.STORAGE_KEYS.THEME) || 'light',
+    
+    // UI State
+    isLoading: false,
+    currentSection: 'dashboard',
+    editingExpenseId: null,
+    editingCategoryId: null,
+    editingSplitExpenseId: null,
+    editingRecurringId: null,
+    editingBillId: null,
+    
+    // Chart instances
+    charts: {
+        trendChart: null,
+        incomeExpenseChart: null,
+        monthlyTrendChart: null,
+        categoryChart: null,
+        detailedCategoryChart: null
+    },
+    
+    // Listeners
+    listeners: {},
+    
+    /**
+     * Initialize state
+     */
+    init() {
+        this.theme = localStorage.getItem(CONFIG.STORAGE_KEYS.THEME) || 'light';
+        this.currency = localStorage.getItem(CONFIG.STORAGE_KEYS.CURRENCY) || 'INR';
+        
+        // Load user from localStorage
+        const userData = localStorage.getItem(CONFIG.STORAGE_KEYS.USER);
+        if (userData) {
+            try {
+                this.user = JSON.parse(userData);
+                this.userId = this.user?.id || this.user?._id || null;
+                this.currency = this.user?.currency || this.currency;
+                this.monthlyIncome = this.user?.monthlyIncome || 0;
+            } catch (e) {
+                console.error('Error parsing user data:', e);
+            }
+        }
+    },
+    
+    /**
+     * Update state and notify listeners
+     */
+    setState(key, value) {
+        this[key] = value;
+        this.notify(key, value);
+    },
+    
+    /**
+     * Subscribe to state changes
+     */
+    subscribe(key, callback) {
+        if (!this.listeners[key]) {
+            this.listeners[key] = [];
+        }
+        this.listeners[key].push(callback);
+    },
+    
+    /**
+     * Notify subscribers
+     */
+    notify(key, value) {
+        if (this.listeners[key]) {
+            this.listeners[key].forEach(callback => callback(value));
+        }
+    },
+    
+    /**
+     * Reset state (logout)
+     */
+    reset() {
+        this.user = null;
+        this.userId = null;
+        this.authToken = null;
+        this.expenses = [];
+        this.categories = [];
+        this.recurringExpenses = [];
+        this.billReminders = [];
+        this.splitExpenses = [];
+        this.editingExpenseId = null;
+        this.editingCategoryId = null;
+        this.editingSplitExpenseId = null;
+        
+        localStorage.removeItem(CONFIG.STORAGE_KEYS.TOKEN);
+        localStorage.removeItem(CONFIG.STORAGE_KEYS.USER);
+    }
+};
 
-// Chart instances
-let trendChart = null;
-let incomeExpenseSavingsChart = null;
-let monthlyTrendChart = null;
-let categoryChart = null;
-let detailedCategoryChart = null;
+// Initialize state
+AppState.init();
 
-/* ======================
-   API HELPER FUNCTIONS
-====================== */
-async function apiRequest(endpoint, options = {}) {
-    const defaultOptions = {
-        headers: {
+// ===================================================================
+// 3. API SERVICE
+// ===================================================================
+
+/**
+ * API Service
+ * Handles all API communication with the backend
+ */
+const ApiService = {
+    /**
+     * Get auth headers
+     */
+    getHeaders() {
+        const headers = {
             'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        };
+        
+        if (AppState.authToken) {
+            headers['Authorization'] = `Bearer ${AppState.authToken}`;
         }
-    };
-
-    if (authToken) {
-        defaultOptions.headers['Authorization'] = `Bearer ${authToken}`;
+        
+        return headers;
+    },
+    
+    /**
+     * Make API request
+     */
+    async request(endpoint, options = {}) {
+        const url = `${CONFIG.API_URL}${endpoint}`;
+        const config = {
+            ...options,
+            headers: {
+                ...this.getHeaders(),
+                ...(options.headers || {})
+            },
+            mode: 'cors'
+        };
+        
+        try {
+            const response = await fetch(url, config);
+            const data = await response.json();
+            
+            // Handle unauthorized
+            if (response.status === 401) {
+                this.handleUnauthorized();
+                throw new Error(data.message || 'Session expired. Please login again.');
+            }
+            
+            if (!response.ok) {
+                throw new Error(data.message || `HTTP ${response.status}`);
+            }
+            
+            return data;
+        } catch (error) {
+            console.error('API Error:', error);
+            throw error;
+        }
+    },
+    
+    /**
+     * Handle unauthorized response
+     */
+    handleUnauthorized() {
+        AppState.reset();
+        showNotification('Session expired. Please login again.', 'error');
+        setTimeout(() => {
+            window.location.href = 'login.html';
+        }, 2000);
+    },
+    
+    /**
+     * Test backend connection
+     */
+    async testConnection() {
+        try {
+            const response = await fetch(`${CONFIG.API_URL}/health`, {
+                mode: 'cors',
+                headers: { 'Accept': 'application/json' }
+            });
+            return response.ok;
+        } catch (error) {
+            console.error('Backend connection failed:', error);
+            return false;
+        }
     }
+};
 
-    const config = {
-        ...defaultOptions,
-        ...options,
-        headers: {
-            ...defaultOptions.headers,
-            ...options.headers
+// ===================================================================
+// 4. AUTH SERVICE
+// ===================================================================
+
+/**
+ * Authentication Service
+ * Handles user authentication and session management
+ */
+const AuthService = {
+    /**
+     * Login user
+     */
+    async login(email, password) {
+        try {
+            const data = await ApiService.request('/auth/login', {
+                method: 'POST',
+                body: JSON.stringify({ email, password })
+            });
+            
+            if (data.success) {
+                AppState.authToken = data.token;
+                AppState.user = data.user;
+                AppState.userId = data.user.id || data.user._id;
+                AppState.currency = data.user.currency || 'INR';
+                AppState.monthlyIncome = data.user.monthlyIncome || 0;
+                
+                localStorage.setItem(CONFIG.STORAGE_KEYS.TOKEN, data.token);
+                localStorage.setItem(CONFIG.STORAGE_KEYS.USER, JSON.stringify(data.user));
+                localStorage.setItem(CONFIG.STORAGE_KEYS.CURRENCY, AppState.currency);
+                
+                return { success: true, user: data.user };
+            }
+            
+            return { success: false, message: data.message || 'Login failed' };
+        } catch (error) {
+            console.error('Login error:', error);
+            return { success: false, message: error.message || 'Login failed' };
         }
-    };
-
-    try {
-        const response = await fetch(`${API_URL}${endpoint}`, config);
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.message || 'API request failed');
+    },
+    
+    /**
+     * Register user
+     */
+    async register(name, email, password) {
+        try {
+            const data = await ApiService.request('/auth/register', {
+                method: 'POST',
+                body: JSON.stringify({ name, email, password })
+            });
+            
+            if (data.success) {
+                AppState.authToken = data.token;
+                AppState.user = data.user;
+                AppState.userId = data.user.id || data.user._id;
+                AppState.currency = data.user.currency || 'INR';
+                AppState.monthlyIncome = data.user.monthlyIncome || 0;
+                
+                localStorage.setItem(CONFIG.STORAGE_KEYS.TOKEN, data.token);
+                localStorage.setItem(CONFIG.STORAGE_KEYS.USER, JSON.stringify(data.user));
+                localStorage.setItem(CONFIG.STORAGE_KEYS.CURRENCY, AppState.currency);
+                
+                return { success: true, user: data.user };
+            }
+            
+            return { success: false, message: data.message || 'Registration failed' };
+        } catch (error) {
+            console.error('Registration error:', error);
+            return { success: false, message: error.message || 'Registration failed' };
         }
-
-        return data;
-    } catch (error) {
-        console.error('API Error:', error);
-        throw error;
-    }
-}
-
-async function loadUserData() {
-    try {
-        const data = await apiRequest('/auth/me');
-        if (data.success) {
-            currentUser = data.user;
-            userId = data.user.id;
-            monthlyIncome = data.user.monthlyIncome || 0;
-            userCurrency = data.user.currency || 'INR';
-            return true;
-        }
-    } catch (error) {
-        console.error('Error loading user data:', error);
-        // Redirect to login if token is invalid
-        if (error.message.includes('Token') || error.message.includes('authorization')) {
+    },
+    
+    /**
+     * Logout user
+     */
+    async logout() {
+        try {
+            await ApiService.request('/auth/logout', { method: 'POST' });
+        } catch (error) {
+            console.error('Logout error:', error);
+        } finally {
+            AppState.reset();
             window.location.href = 'login.html';
         }
-        return false;
-    }
-}
-
-async function loadExpensesFromAPI() {
-    try {
-        const data = await apiRequest('/expenses');
-        if (data.success) {
-            expenses = data.expenses;
-        }
-    } catch (error) {
-        console.error('Error loading expenses:', error);
-        showNotification('Failed to load expenses', 'error');
-    }
-}
-
-async function loadRecurringExpensesFromAPI() {
-    try {
-        const data = await apiRequest('/recurring');
-        if (data.success) {
-            recurringExpenses = data.recurringExpenses;
-        }
-    } catch (error) {
-        console.error('Error loading recurring expenses:', error);
-        showNotification('Failed to load recurring expenses', 'error');
-    }
-}
-
-async function loadBillRemindersFromAPI() {
-    try {
-        const data = await apiRequest('/bills');
-        if (data.success) {
-            billReminders = data.bills;
-        }
-    } catch (error) {
-        console.error('Error loading bill reminders:', error);
-        showNotification('Failed to load bill reminders', 'error');
-    }
-}
-
-async function loadSplitExpensesFromAPI() {
-    try {
-        const data = await apiRequest('/split');
-        if (data.success) {
-            splitExpenses = data.splitExpenses;
-        }
-    } catch (error) {
-        console.error('Error loading split expenses:', error);
-        showNotification('Failed to load split expenses', 'error');
-    }
-}
-
-async function loadCategoriesFromAPI() {
-    try {
-        const data = await apiRequest('/categories');
-        if (data.success) {
-            customCategories = data.categories;
-        }
-    } catch (error) {
-        console.error('Error loading categories:', error);
-        showNotification('Failed to load categories', 'error');
-    }
-}
-
-/* ======================
-   INITIALIZATION
-====================== */
-document.addEventListener('DOMContentLoaded', async function() {
-    console.log('Expense Tracker Initialized');
+    },
     
-    // Check if user is authenticated
-    if (!authToken) {
-        window.location.href = 'login.html';
-        return;
-    }
-    
-    // Apply theme
-    applyTheme();
-    
-    // Set current date
-    const now = new Date();
-    document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', {
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric'
-    });
-    
-    // Set expense date to today
-    document.getElementById('expenseDate').valueAsDate = now;
-    
-    // Load user data first
-    const userLoaded = await loadUserData();
-    if (!userLoaded) {
-        return;
-    }
-    
-    // Initialize currency
-    document.getElementById('currencySelector').value = userCurrency;
-    updateCurrencyDisplay();
-    
-    // Update user display
-    if (currentUser) {
-        document.getElementById('username').innerHTML = `Welcome back, <span class="text-primary">${currentUser.name}</span>`;
-        document.getElementById('totalIncome').textContent = formatCurrency(monthlyIncome);
-    }
-    
-    // Initialize categories
-    await loadCategoriesFromAPI();
-    initializeCategories();
-    
-    // Load all data from API
-    await Promise.all([
-        loadExpensesFromAPI(),
-        loadRecurringExpensesFromAPI(),
-        loadBillRemindersFromAPI(),
-        loadSplitExpensesFromAPI()
-    ]);
-    
-    // Load initial data
-    updateAllDisplays();
-    
-    // Initialize analytics
-    loadAnalytics();
-    
-    // Initialize filters
-    initializeFilters();
-    
-    // Add event listeners for category dropdowns
-    setupCategoryDropdownListeners();
-    
-    console.log('All functions loaded successfully');
-});
-
-/* ======================
-   SETUP CATEGORY DROPDOWN LISTENERS
-====================== */
-function setupCategoryDropdownListeners() {
-    const dropdownIds = ['category', 'recurringCategory', 'billCategory', 'splitCategory'];
-    
-    dropdownIds.forEach(id => {
-        const dropdown = document.getElementById(id);
-        if (dropdown) {
-            dropdown.addEventListener('change', function() {
-                if (this.value === '__add_new__') {
-                    this.dataset.previousValue = this.value;
-                    showAddCategoryModal();
-                    setTimeout(() => {
-                        this.value = this.dataset.originalValue || '';
-                    }, 100);
-                } else {
-                    this.dataset.originalValue = this.value;
-                }
-            });
-        }
-    });
-}
-
-/* ======================
-   BASIC UI FUNCTIONS
-====================== */
-function showSection(id) {
-    // Hide all sections
-    document.querySelectorAll('main > section').forEach(section => {
-        section.classList.add('hidden');
-    });
-    
-    // Show selected section
-    const section = document.getElementById(id);
-    if (section) {
-        section.classList.remove('hidden');
-    }
-    
-    // Update active button
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    
-    const btnIndex = {
-        'dashboard': 0,
-        'expenses': 1,
-        'analytics': 2,
-        'recurring': 3,
-        'bills': 4,
-        'split': 5
-    }[id];
-    
-    const navButtons = document.querySelectorAll('.nav-btn');
-    if (navButtons[btnIndex]) {
-        navButtons[btnIndex].classList.add('active');
-    }
-    
-    // Load data for the section
-    switch(id) {
-        case 'dashboard':
-            loadExpenses();
-            updateDashboard();
-            break;
-        case 'expenses':
-            loadExpenses();
-            break;
-        case 'analytics':
-            setTimeout(() => {
-                loadAnalytics();
-                updateChartSizes();
-            }, 100);
-            break;
-        case 'recurring':
-            updateRecurringExpensesDisplay();
-            break;
-        case 'bills':
-            updateBillRemindersDisplay();
-            updateBillCalendar();
-            break;
-        case 'split':
-            updateSplitExpensesDisplay();
-            break;
-    }
-}
-
-function toggleTheme() {
-    currentTheme = currentTheme === 'light' ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', currentTheme);
-    localStorage.setItem('theme', currentTheme);
-    
-    const themeIcon = document.getElementById('themeIcon');
-    themeIcon.className = currentTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
-    
-    showNotification(`${currentTheme === 'light' ? 'Light' : 'Dark'} mode enabled`, 'info');
-}
-
-function applyTheme() {
-    document.documentElement.setAttribute('data-theme', currentTheme);
-    const themeIcon = document.getElementById('themeIcon');
-    if (themeIcon) {
-        themeIcon.className = currentTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
-    }
-}
-
-async function changeCurrency(currency) {
-    try {
-        const data = await apiRequest('/user/profile', {
-            method: 'PUT',
-            body: JSON.stringify({ currency })
-        });
-        
-        if (data.success) {
-            userCurrency = currency;
-            updateCurrencyDisplay();
-            showNotification(`Currency changed to ${currency}`, 'success');
-            updateAllDisplays();
-        }
-    } catch (error) {
-        showNotification('Failed to update currency', 'error');
-    }
-}
-
-function updateCurrencyDisplay() {
-    const symbol = CURRENCY_SYMBOLS[userCurrency];
-    document.querySelectorAll('#currencySymbol').forEach(el => {
-        el.textContent = symbol;
-    });
-}
-
-function formatCurrency(amount) {
-    if (isNaN(amount)) return '0.00';
-    return new Intl.NumberFormat('en-IN', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    }).format(amount);
-}
-
-/* ======================
-   USER MANAGEMENT
-====================== */
-function toggleProfile() {
-    const modal = document.getElementById('profileModal');
-    const isHidden = modal.classList.contains('hidden');
-    
-    if (isHidden && currentUser) {
-        document.getElementById('profileName').value = currentUser.name || '';
-        document.getElementById('profileIncome').value = currentUser.monthlyIncome || '';
-        document.getElementById('profileCurrency').value = currentUser.currency || 'INR';
-        
-        // Show email
-        const emailDisplay = document.getElementById('profileEmail');
-        if (emailDisplay) {
-            emailDisplay.textContent = currentUser.email || '';
-        }
-    }
-    
-    modal.classList.toggle('hidden');
-}
-
-async function saveProfile() {
-    const name = document.getElementById('profileName').value.trim();
-    const income = document.getElementById('profileIncome').value;
-    const currency = document.getElementById('profileCurrency').value;
-
-    if (!name || !income) {
-        showNotification('Please enter name and income', 'error');
-        return;
-    }
-
-    try {
-        const data = await apiRequest('/user/profile', {
-            method: 'PUT',
-            body: JSON.stringify({
-                name,
-                monthlyIncome: Number(income),
-                currency
-            })
-        });
-
-        if (data.success) {
-            currentUser = data.user;
-            monthlyIncome = data.user.monthlyIncome;
-            userCurrency = data.user.currency;
-
-            document.getElementById('username').innerHTML = `Welcome back, <span class="text-primary">${data.user.name}</span>`;
-            document.getElementById('totalIncome').textContent = formatCurrency(monthlyIncome);
-            document.getElementById('currencySelector').value = userCurrency;
-
-            updateCurrencyDisplay();
-            updateAllDisplays();
-            toggleProfile();
-            showNotification('Profile updated successfully', 'success');
-        }
-    } catch (error) {
-        showNotification('Failed to update profile', 'error');
-    }
-}
-
-async function deleteAccount() {
-    if (confirm('Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently lost.')) {
+    /**
+     * Get current user
+     */
+    async getCurrentUser() {
         try {
-            const data = await apiRequest('/user/delete', {
+            const data = await ApiService.request('/auth/me');
+            if (data.success) {
+                AppState.user = data.user;
+                AppState.userId = data.user.id || data.user._id;
+                AppState.currency = data.user.currency || 'INR';
+                AppState.monthlyIncome = data.user.monthlyIncome || 0;
+                
+                localStorage.setItem(CONFIG.STORAGE_KEYS.USER, JSON.stringify(data.user));
+                localStorage.setItem(CONFIG.STORAGE_KEYS.CURRENCY, AppState.currency);
+                
+                return { success: true, user: data.user };
+            }
+            return { success: false, message: data.message || 'Failed to get user' };
+        } catch (error) {
+            console.error('Get user error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Update user profile
+     */
+    async updateProfile(data) {
+        try {
+            const response = await ApiService.request('/user/profile', {
+                method: 'PUT',
+                body: JSON.stringify(data)
+            });
+            
+            if (response.success) {
+                AppState.user = response.user;
+                AppState.currency = response.user.currency || AppState.currency;
+                AppState.monthlyIncome = response.user.monthlyIncome || 0;
+                
+                localStorage.setItem(CONFIG.STORAGE_KEYS.USER, JSON.stringify(response.user));
+                localStorage.setItem(CONFIG.STORAGE_KEYS.CURRENCY, AppState.currency);
+                
+                return { success: true, user: response.user };
+            }
+            
+            return { success: false, message: response.message || 'Update failed' };
+        } catch (error) {
+            console.error('Update profile error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Change password
+     */
+    async changePassword(currentPassword, newPassword) {
+        try {
+            const response = await ApiService.request('/user/password', {
+                method: 'PUT',
+                body: JSON.stringify({ currentPassword, newPassword })
+            });
+            return { success: response.success, message: response.message };
+        } catch (error) {
+            console.error('Change password error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Delete account
+     */
+    async deleteAccount() {
+        try {
+            const response = await ApiService.request('/user/delete', {
+                method: 'DELETE'
+            });
+            
+            if (response.success) {
+                AppState.reset();
+                return { success: true, message: response.message };
+            }
+            
+            return { success: false, message: response.message || 'Delete failed' };
+        } catch (error) {
+            console.error('Delete account error:', error);
+            return { success: false, message: error.message };
+        }
+    }
+};
+
+// ===================================================================
+// 5. EXPENSE SERVICE
+// ===================================================================
+
+/**
+ * Expense Service
+ * Handles all expense-related API operations
+ */
+const ExpenseService = {
+    /**
+     * Get all expenses
+     */
+    async getAll() {
+        try {
+            const data = await ApiService.request('/expenses');
+            if (data.success) {
+                AppState.expenses = data.expenses || [];
+                return { success: true, expenses: data.expenses };
+            }
+            return { success: false, message: data.message };
+        } catch (error) {
+            console.error('Get expenses error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Create expense
+     */
+    async create(expenseData) {
+        try {
+            const data = await ApiService.request('/expenses', {
+                method: 'POST',
+                body: JSON.stringify(expenseData)
+            });
+            
+            if (data.success) {
+                AppState.expenses.push(data.expense);
+                return { success: true, expense: data.expense };
+            }
+            return { success: false, message: data.message };
+        } catch (error) {
+            console.error('Create expense error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Update expense
+     */
+    async update(id, expenseData) {
+        try {
+            const data = await ApiService.request(`/expenses/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify(expenseData)
+            });
+            
+            if (data.success) {
+                const index = AppState.expenses.findIndex(e => e._id === id);
+                if (index !== -1) {
+                    AppState.expenses[index] = data.expense;
+                }
+                return { success: true, expense: data.expense };
+            }
+            return { success: false, message: data.message };
+        } catch (error) {
+            console.error('Update expense error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Delete expense
+     */
+    async delete(id) {
+        try {
+            const data = await ApiService.request(`/expenses/${id}`, {
                 method: 'DELETE'
             });
             
             if (data.success) {
-                showNotification('Account deleted successfully', 'success');
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                setTimeout(() => {
-                    window.location.href = 'login.html';
-                }, 2000);
+                AppState.expenses = AppState.expenses.filter(e => e._id !== id);
+                return { success: true, message: data.message };
             }
+            return { success: false, message: data.message };
         } catch (error) {
-            console.error('Delete account error:', error);
-            showNotification(error.message || 'Failed to delete account', 'error');
+            console.error('Delete expense error:', error);
+            return { success: false, message: error.message };
         }
+    },
+    
+    /**
+     * Get expense stats
+     */
+    async getStats() {
+        try {
+            const data = await ApiService.request('/expenses/stats/summary');
+            return { success: data.success, stats: data.stats };
+        } catch (error) {
+            console.error('Get stats error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Get expenses by month
+     */
+    getByMonth(month, year) {
+        return AppState.expenses.filter(e => {
+            const date = new Date(e.date);
+            return date.getMonth() === month && date.getFullYear() === year;
+        });
+    },
+    
+    /**
+     * Get expenses by category
+     */
+    getByCategory(category) {
+        return AppState.expenses.filter(e => e.category === category);
+    },
+    
+    /**
+     * Get total by month
+     */
+    getTotalByMonth(month, year, type = null) {
+        const filtered = this.getByMonth(month, year);
+        if (type) {
+            return filtered.filter(e => e.type === type).reduce((sum, e) => sum + e.amount, 0);
+        }
+        return filtered.reduce((sum, e) => sum + e.amount, 0);
+    }
+};
+
+// ===================================================================
+// 6. CATEGORY SERVICE
+// ===================================================================
+
+/**
+ * Category Service
+ * Handles category-related operations
+ */
+const CategoryService = {
+    /**
+     * Get all categories
+     */
+    async getAll() {
+        try {
+            const data = await ApiService.request('/categories');
+            if (data.success) {
+                AppState.categories = data.categories || [];
+                return { success: true, categories: data.categories };
+            }
+            return { success: false, message: data.message };
+        } catch (error) {
+            console.error('Get categories error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Create category
+     */
+    async create(categoryData) {
+        try {
+            const data = await ApiService.request('/categories', {
+                method: 'POST',
+                body: JSON.stringify(categoryData)
+            });
+            
+            if (data.success) {
+                AppState.categories.push(data.category);
+                return { success: true, category: data.category };
+            }
+            return { success: false, message: data.message };
+        } catch (error) {
+            console.error('Create category error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Update category
+     */
+    async update(id, categoryData) {
+        try {
+            const data = await ApiService.request(`/categories/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify(categoryData)
+            });
+            
+            if (data.success) {
+                const index = AppState.categories.findIndex(c => c._id === id);
+                if (index !== -1) {
+                    AppState.categories[index] = data.category;
+                }
+                return { success: true, category: data.category };
+            }
+            return { success: false, message: data.message };
+        } catch (error) {
+            console.error('Update category error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Delete category
+     */
+    async delete(id) {
+        try {
+            const data = await ApiService.request(`/categories/${id}`, {
+                method: 'DELETE'
+            });
+            
+            if (data.success) {
+                AppState.categories = AppState.categories.filter(c => c._id !== id);
+                return { success: true, message: data.message };
+            }
+            return { success: false, message: data.message };
+        } catch (error) {
+            console.error('Delete category error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Get all categories (including defaults)
+     */
+    getAllCategories() {
+        return [...CONFIG.DEFAULT_CATEGORIES, ...AppState.categories];
+    },
+    
+    /**
+     * Get category by name
+     */
+    getByName(name) {
+        return this.getAllCategories().find(c => c.name === name);
+    },
+    
+    /**
+     * Get category color
+     */
+    getColor(name) {
+        const category = this.getByName(name);
+        return category?.color || '#6C757D';
+    },
+    
+    /**
+     * Get category icon
+     */
+    getIcon(name) {
+        const category = this.getByName(name);
+        return category?.icon || '📝';
+    }
+};
+
+// ===================================================================
+// 7. RECURRING SERVICE
+// ===================================================================
+
+/**
+ * Recurring Expense Service
+ */
+const RecurringService = {
+    /**
+     * Get all recurring expenses
+     */
+    async getAll() {
+        try {
+            const data = await ApiService.request('/recurring');
+            if (data.success) {
+                AppState.recurringExpenses = data.recurringExpenses || [];
+                return { success: true, recurringExpenses: data.recurringExpenses };
+            }
+            return { success: false, message: data.message };
+        } catch (error) {
+            console.error('Get recurring error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Create recurring expense
+     */
+    async create(data) {
+        try {
+            const response = await ApiService.request('/recurring', {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+            
+            if (response.success) {
+                AppState.recurringExpenses.push(response.recurringExpense);
+                return { success: true, recurringExpense: response.recurringExpense };
+            }
+            return { success: false, message: response.message };
+        } catch (error) {
+            console.error('Create recurring error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Update recurring expense
+     */
+    async update(id, data) {
+        try {
+            const response = await ApiService.request(`/recurring/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify(data)
+            });
+            
+            if (response.success) {
+                const index = AppState.recurringExpenses.findIndex(r => r._id === id);
+                if (index !== -1) {
+                    AppState.recurringExpenses[index] = response.recurringExpense;
+                }
+                return { success: true, recurringExpense: response.recurringExpense };
+            }
+            return { success: false, message: response.message };
+        } catch (error) {
+            console.error('Update recurring error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Delete recurring expense
+     */
+    async delete(id) {
+        try {
+            const response = await ApiService.request(`/recurring/${id}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.success) {
+                AppState.recurringExpenses = AppState.recurringExpenses.filter(r => r._id !== id);
+                return { success: true, message: response.message };
+            }
+            return { success: false, message: response.message };
+        } catch (error) {
+            console.error('Delete recurring error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Toggle recurring expense
+     */
+    async toggle(id) {
+        try {
+            const response = await ApiService.request(`/recurring/${id}/toggle`, {
+                method: 'PATCH'
+            });
+            
+            if (response.success) {
+                const index = AppState.recurringExpenses.findIndex(r => r._id === id);
+                if (index !== -1) {
+                    AppState.recurringExpenses[index] = response.recurringExpense;
+                }
+                return { success: true, recurringExpense: response.recurringExpense };
+            }
+            return { success: false, message: response.message };
+        } catch (error) {
+            console.error('Toggle recurring error:', error);
+            return { success: false, message: error.message };
+        }
+    }
+};
+
+// ===================================================================
+// 8. BILL SERVICE
+// ===================================================================
+
+/**
+ * Bill Reminder Service
+ */
+const BillService = {
+    /**
+     * Get all bills
+     */
+    async getAll() {
+        try {
+            const data = await ApiService.request('/bills');
+            if (data.success) {
+                AppState.billReminders = data.bills || [];
+                return { success: true, bills: data.bills };
+            }
+            return { success: false, message: data.message };
+        } catch (error) {
+            console.error('Get bills error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Create bill
+     */
+    async create(data) {
+        try {
+            const response = await ApiService.request('/bills', {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+            
+            if (response.success) {
+                AppState.billReminders.push(response.bill);
+                return { success: true, bill: response.bill };
+            }
+            return { success: false, message: response.message };
+        } catch (error) {
+            console.error('Create bill error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Update bill
+     */
+    async update(id, data) {
+        try {
+            const response = await ApiService.request(`/bills/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify(data)
+            });
+            
+            if (response.success) {
+                const index = AppState.billReminders.findIndex(b => b._id === id);
+                if (index !== -1) {
+                    AppState.billReminders[index] = response.bill;
+                }
+                return { success: true, bill: response.bill };
+            }
+            return { success: false, message: response.message };
+        } catch (error) {
+            console.error('Update bill error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Delete bill
+     */
+    async delete(id) {
+        try {
+            const response = await ApiService.request(`/bills/${id}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.success) {
+                AppState.billReminders = AppState.billReminders.filter(b => b._id !== id);
+                return { success: true, message: response.message };
+            }
+            return { success: false, message: response.message };
+        } catch (error) {
+            console.error('Delete bill error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Mark bill as paid
+     */
+    async markPaid(id) {
+        try {
+            const response = await ApiService.request(`/bills/${id}/pay`, {
+                method: 'PATCH'
+            });
+            
+            if (response.success) {
+                const index = AppState.billReminders.findIndex(b => b._id === id);
+                if (index !== -1) {
+                    AppState.billReminders[index] = response.bill;
+                }
+                return { success: true, bill: response.bill };
+            }
+            return { success: false, message: response.message };
+        } catch (error) {
+            console.error('Mark bill paid error:', error);
+            return { success: false, message: error.message };
+        }
+    }
+};
+
+// ===================================================================
+// 9. SPLIT EXPENSE SERVICE
+// ===================================================================
+
+/**
+ * Split Expense Service
+ */
+const SplitService = {
+    /**
+     * Get all split expenses
+     */
+    async getAll() {
+        try {
+            const data = await ApiService.request('/split');
+            if (data.success) {
+                AppState.splitExpenses = data.splitExpenses || [];
+                return { success: true, splitExpenses: data.splitExpenses };
+            }
+            return { success: false, message: data.message };
+        } catch (error) {
+            console.error('Get split expenses error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Create split expense
+     */
+    async create(data) {
+        try {
+            const response = await ApiService.request('/split', {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+            
+            if (response.success) {
+                AppState.splitExpenses.push(response.splitExpense);
+                return { success: true, splitExpense: response.splitExpense };
+            }
+            return { success: false, message: response.message };
+        } catch (error) {
+            console.error('Create split expense error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Update split expense
+     */
+    async update(id, data) {
+        try {
+            const response = await ApiService.request(`/split/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify(data)
+            });
+            
+            if (response.success) {
+                const index = AppState.splitExpenses.findIndex(s => s._id === id);
+                if (index !== -1) {
+                    AppState.splitExpenses[index] = response.splitExpense;
+                }
+                return { success: true, splitExpense: response.splitExpense };
+            }
+            return { success: false, message: response.message };
+        } catch (error) {
+            console.error('Update split expense error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Delete split expense
+     */
+    async delete(id) {
+        try {
+            const response = await ApiService.request(`/split/${id}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.success) {
+                AppState.splitExpenses = AppState.splitExpenses.filter(s => s._id !== id);
+                return { success: true, message: response.message };
+            }
+            return { success: false, message: response.message };
+        } catch (error) {
+            console.error('Delete split expense error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Toggle member payment
+     */
+    async toggleMemberPayment(id, memberIndex) {
+        try {
+            const response = await ApiService.request(`/split/${id}/member/${memberIndex}/pay`, {
+                method: 'PATCH'
+            });
+            
+            if (response.success) {
+                const index = AppState.splitExpenses.findIndex(s => s._id === id);
+                if (index !== -1) {
+                    AppState.splitExpenses[index] = response.splitExpense;
+                }
+                return { success: true, splitExpense: response.splitExpense };
+            }
+            return { success: false, message: response.message };
+        } catch (error) {
+            console.error('Toggle member payment error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Settle split expense
+     */
+    async settle(id) {
+        try {
+            const response = await ApiService.request(`/split/${id}/settle`, {
+                method: 'PATCH'
+            });
+            
+            if (response.success) {
+                const index = AppState.splitExpenses.findIndex(s => s._id === id);
+                if (index !== -1) {
+                    AppState.splitExpenses[index] = response.splitExpense;
+                }
+                return { success: true, splitExpense: response.splitExpense };
+            }
+            return { success: false, message: response.message };
+        } catch (error) {
+            console.error('Settle split expense error:', error);
+            return { success: false, message: error.message };
+        }
+    },
+    
+    /**
+     * Unsettle split expense
+     */
+    async unsettle(id) {
+        try {
+            const response = await ApiService.request(`/split/${id}/unsettle`, {
+                method: 'PATCH'
+            });
+            
+            if (response.success) {
+                const index = AppState.splitExpenses.findIndex(s => s._id === id);
+                if (index !== -1) {
+                    AppState.splitExpenses[index] = response.splitExpense;
+                }
+                return { success: true, splitExpense: response.splitExpense };
+            }
+            return { success: false, message: response.message };
+        } catch (error) {
+            console.error('Unsettle split expense error:', error);
+            return { success: false, message: error.message };
+        }
+    }
+};
+
+// ===================================================================
+// 10. UTILITY FUNCTIONS
+// ===================================================================
+
+/**
+ * Format currency
+ */
+function formatCurrency(amount) {
+    if (amount === undefined || amount === null || isNaN(amount)) {
+        return '0.00';
+    }
+    return parseFloat(amount).toLocaleString('en-IN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+/**
+ * Get currency symbol
+ */
+function getCurrencySymbol(currency = null) {
+    const cur = currency || AppState.currency;
+    return CONFIG.CURRENCY_SYMBOLS[cur] || '₹';
+}
+
+/**
+ * Format date
+ */
+function formatDate(dateString, format = CONFIG.DISPLAY_DATE_FORMAT) {
+    if (!dateString) return 'N/A';
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'N/A';
+        return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+    } catch (e) {
+        return 'N/A';
     }
 }
 
-/* ======================
-   EXPENSE MANAGEMENT
-====================== */
-async function addExpense() {
-    const description = document.getElementById('title').value.trim();
-    const amount = parseFloat(document.getElementById('amount').value);
-    const category = document.getElementById('category').value;
-    const date = document.getElementById('expenseDate').value;
+/**
+ * Format date for input
+ */
+function formatDateInput(dateString) {
+    if (!dateString) return '';
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '';
+        return date.toISOString().split('T')[0];
+    } catch (e) {
+        return '';
+    }
+}
 
+/**
+ * Get days until date
+ */
+function getDaysUntil(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = date - now;
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Get month name
+ */
+function getMonthName(month) {
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                    'July', 'August', 'September', 'October', 'November', 'December'];
+    return months[month] || '';
+}
+
+/**
+ * Get month abbreviation
+ */
+function getMonthAbbr(month) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return months[month] || '';
+}
+
+/**
+ * Get day name
+ */
+function getDayName(day) {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[day] || '';
+}
+
+/**
+ * Get day abbreviation
+ */
+function getDayAbbr(day) {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return days[day] || '';
+}
+
+/**
+ * Generate random ID
+ */
+function generateId() {
+    return Math.random().toString(36).substring(2, 15) + 
+           Math.random().toString(36).substring(2, 15);
+}
+
+/**
+ * Debounce function
+ */
+function debounce(func, wait = 300) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+/**
+ * Throttle function
+ */
+function throttle(func, limit = 300) {
+    let inThrottle;
+    return function(...args) {
+        if (!inThrottle) {
+            func.apply(this, args);
+            inThrottle = true;
+            setTimeout(() => inThrottle = false, limit);
+        }
+    };
+}
+
+/**
+ * Deep clone object
+ */
+function deepClone(obj) {
+    return JSON.parse(JSON.stringify(obj));
+}
+
+/**
+ * Group array by key
+ */
+function groupBy(array, key) {
+    return array.reduce((result, item) => {
+        const groupKey = item[key];
+        if (!result[groupKey]) {
+            result[groupKey] = [];
+        }
+        result[groupKey].push(item);
+        return result;
+    }, {});
+}
+
+/**
+ * Sum array by key
+ */
+function sumBy(array, key) {
+    return array.reduce((sum, item) => sum + (item[key] || 0), 0);
+}
+
+/**
+ * Sort by date
+ */
+function sortByDate(array, key, ascending = true) {
+    return [...array].sort((a, b) => {
+        const dateA = new Date(a[key]);
+        const dateB = new Date(b[key]);
+        return ascending ? dateA - dateB : dateB - dateA;
+    });
+}
+
+/**
+ * Get last N months
+ */
+function getLastMonths(n = 6) {
+    const months = [];
+    const now = new Date();
+    for (let i = n - 1; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push(date);
+    }
+    return months;
+}
+
+// ===================================================================
+// 11. NOTIFICATION SYSTEM
+// ===================================================================
+
+/**
+ * Show notification
+ */
+function showNotification(message, type = 'info', duration = 4000) {
+    // Remove existing notification
+    const existing = document.querySelector('.notification');
+    if (existing) {
+        existing.remove();
+    }
+
+    const notification = document.createElement('div');
+    const icons = {
+        success: 'fa-check-circle',
+        error: 'fa-exclamation-circle',
+        warning: 'fa-exclamation-triangle',
+        info: 'fa-info-circle'
+    };
+    
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+        <i class="fas ${icons[type] || icons.info}"></i>
+        <span>${message}</span>
+        <button class="notification-close" onclick="this.parentElement.remove()">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+
+    document.body.appendChild(notification);
+
+    // Show with animation
+    requestAnimationFrame(() => {
+        notification.classList.add('show');
+    });
+
+    // Auto dismiss
+    if (duration > 0) {
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => notification.remove(), 300);
+        }, duration);
+    }
+}
+
+/**
+ * Show global message
+ */
+function showGlobalMessage(message, type = 'success') {
+    const messageEl = document.getElementById('globalMessage');
+    if (!messageEl) return;
+    
+    messageEl.textContent = message;
+    messageEl.className = `message ${type}`;
+    messageEl.style.display = 'block';
+    
+    setTimeout(() => {
+        messageEl.style.display = 'none';
+    }, 5000);
+}
+
+/**
+ * Show loading overlay
+ */
+function showLoading(show) {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.classList.toggle('hidden', !show);
+    }
+    AppState.isLoading = show;
+}
+
+// ===================================================================
+// 12. THEME MANAGEMENT
+// ===================================================================
+
+/**
+ * Theme Manager
+ */
+const ThemeManager = {
+    /**
+     * Apply theme
+     */
+    apply(theme = null) {
+        const t = theme || AppState.theme;
+        document.documentElement.setAttribute('data-theme', t);
+        localStorage.setItem(CONFIG.STORAGE_KEYS.THEME, t);
+        AppState.theme = t;
+        
+        // Update theme icon
+        const themeIcon = document.getElementById('themeIcon');
+        if (themeIcon) {
+            themeIcon.className = t === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+        }
+    },
+    
+    /**
+     * Toggle theme
+     */
+    toggle() {
+        const newTheme = AppState.theme === 'light' ? 'dark' : 'light';
+        this.apply(newTheme);
+        showNotification(`${newTheme.charAt(0).toUpperCase() + newTheme.slice(1)} mode enabled`, 'info');
+        return newTheme;
+    },
+    
+    /**
+     * Initialize theme
+     */
+    init() {
+        const savedTheme = localStorage.getItem(CONFIG.STORAGE_KEYS.THEME);
+        const theme = savedTheme || 'light';
+        this.apply(theme);
+    }
+};
+
+// ===================================================================
+// 13. UI RENDERER
+// ===================================================================
+
+/**
+ * UI Renderer
+ * Handles all DOM rendering
+ */
+const UIRenderer = {
+    /**
+     * Update currency display
+     */
+    updateCurrency() {
+        const symbol = getCurrencySymbol();
+        document.querySelectorAll('.currency-symbol').forEach(el => {
+            el.textContent = symbol;
+        });
+    },
+    
+    /**
+     * Update date display
+     */
+    updateDateDisplay() {
+        const dateEl = document.getElementById('currentDate');
+        if (dateEl) {
+            const now = new Date();
+            dateEl.textContent = now.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+    },
+    
+    /**
+     * Update user display
+     */
+    updateUserDisplay() {
+        const user = AppState.user;
+        if (!user) return;
+        
+        const usernameEl = document.getElementById('username');
+        if (usernameEl) {
+            usernameEl.innerHTML = `Welcome back, <span class="text-primary">${user.name}</span>`;
+        }
+        
+        // Update profile form
+        const profileName = document.getElementById('profileName');
+        const profileEmail = document.getElementById('profileEmail');
+        const profileIncome = document.getElementById('profileIncome');
+        const profileCurrency = document.getElementById('profileCurrency');
+        const currencySelector = document.getElementById('currencySelector');
+        
+        if (profileName) profileName.value = user.name || '';
+        if (profileEmail) {
+            profileEmail.innerHTML = `
+                <span>${user.email || ''}</span>
+                <small class="text-muted">(cannot be changed)</small>
+            `;
+        }
+        if (profileIncome) profileIncome.value = user.monthlyIncome || '';
+        if (profileCurrency) profileCurrency.value = user.currency || 'INR';
+        if (currencySelector) currencySelector.value = user.currency || 'INR';
+    },
+    
+    /**
+     * Render dashboard
+     */
+    renderDashboard() {
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+        
+        // Get monthly data
+        const monthlyExpenses = ExpenseService.getByMonth(currentMonth, currentYear)
+            .filter(e => e.type === 'expense');
+        const monthlyIncome = ExpenseService.getByMonth(currentMonth, currentYear)
+            .filter(e => e.type === 'income');
+        
+        const totalExpenses = sumBy(monthlyExpenses, 'amount');
+        const totalIncome = sumBy(monthlyIncome, 'amount') || AppState.monthlyIncome;
+        const balance = totalIncome - totalExpenses;
+        const savingsRate = totalIncome > 0 ? ((balance / totalIncome) * 100) : 0;
+        
+        // Update stats
+        const elements = {
+            totalIncome: document.getElementById('totalIncome'),
+            totalExpense: document.getElementById('totalExpense'),
+            balance: document.getElementById('balance'),
+            savingsRate: document.getElementById('savingsRate'),
+            expenseTotal: document.getElementById('expenseTotal')
+        };
+        
+        if (elements.totalIncome) {
+            elements.totalIncome.textContent = formatCurrency(totalIncome);
+        }
+        if (elements.totalExpense) {
+            elements.totalExpense.textContent = formatCurrency(totalExpenses);
+        }
+        if (elements.balance) {
+            elements.balance.textContent = formatCurrency(balance);
+        }
+        if (elements.savingsRate) {
+            elements.savingsRate.textContent = `${savingsRate.toFixed(1)}%`;
+        }
+        if (elements.expenseTotal) {
+            elements.expenseTotal.innerHTML = `
+                ${getCurrencySymbol()}${formatCurrency(totalExpenses)}
+            `;
+        }
+        
+        // Render recent expenses
+        this.renderRecentExpenses();
+        
+        // Render category breakdown
+        this.renderCategoryBreakdown();
+        
+        // Render upcoming bills
+        this.renderUpcomingBills();
+    },
+    
+    /**
+     * Render recent expenses
+     */
+    renderRecentExpenses() {
+        const container = document.getElementById('recentExpenseList');
+        if (!container) return;
+        
+        const recent = sortByDate(AppState.expenses, 'date', false).slice(0, 5);
+        
+        if (recent.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-receipt"></i>
+                    <p>No expenses yet</p>
+                    <p class="text-muted">Add your first expense to get started</p>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = recent.map(expense => {
+            const icon = CategoryService.getIcon(expense.category);
+            const isIncome = expense.type === 'income';
+            return `
+                <div class="expense-item">
+                    <div class="expense-info">
+                        <div class="expense-icon">
+                            <span>${icon}</span>
+                        </div>
+                        <div class="expense-details">
+                            <h4>${expense.description}</h4>
+                            <p class="expense-category">
+                                <i class="fas fa-tag"></i> ${expense.category}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="expense-amount ${isIncome ? 'income' : 'expense'}">
+                        ${isIncome ? '+' : '-'}${getCurrencySymbol()}${formatCurrency(expense.amount)}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    },
+    
+    /**
+     * Render category breakdown
+     */
+    renderCategoryBreakdown() {
+        const container = document.getElementById('categoryBreakdown');
+        if (!container) return;
+        
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+        
+        const monthlyExpenses = ExpenseService.getByMonth(currentMonth, currentYear)
+            .filter(e => e.type === 'expense');
+        
+        if (monthlyExpenses.length === 0) {
+            container.innerHTML = '<div class="empty-state">No expenses this month</div>';
+            return;
+        }
+        
+        const categoryTotals = groupBy(monthlyExpenses, 'category');
+        const sorted = Object.entries(categoryTotals)
+            .map(([category, items]) => ({
+                category,
+                total: sumBy(items, 'amount')
+            }))
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 5);
+        
+        const totalAll = sumBy(sorted, 'total');
+        
+        container.innerHTML = sorted.map(({ category, total }) => {
+            const percentage = (total / totalAll) * 100;
+            const color = CategoryService.getColor(category);
+            const icon = CategoryService.getIcon(category);
+            
+            return `
+                <div class="category-breakdown-item">
+                    <div class="category-breakdown-header">
+                        <span class="category-icon">${icon}</span>
+                        <span class="category-name">${category}</span>
+                        <span class="category-amount">${getCurrencySymbol()}${formatCurrency(total)}</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${percentage}%; background: ${color}"></div>
+                    </div>
+                    <div class="category-percentage">${percentage.toFixed(1)}%</div>
+                </div>
+            `;
+        }).join('');
+    },
+    
+    /**
+     * Render upcoming bills
+     */
+    renderUpcomingBills() {
+        const container = document.getElementById('upcomingBills');
+        if (!container) return;
+        
+        const now = new Date();
+        const upcoming = AppState.billReminders
+            .filter(bill => !bill.isPaid && new Date(bill.dueDate) >= now)
+            .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+            .slice(0, 3);
+        
+        if (upcoming.length === 0) {
+            container.innerHTML = '<div class="empty-state">No upcoming bills</div>';
+            return;
+        }
+        
+        container.innerHTML = upcoming.map(bill => {
+            const daysUntil = getDaysUntil(bill.dueDate);
+            const isOverdue = daysUntil < 0;
+            const isDueSoon = daysUntil <= (bill.reminderDays || 3) && daysUntil >= 0;
+            
+            return `
+                <div class="bill-item ${isOverdue ? 'overdue' : isDueSoon ? 'due-soon' : ''}">
+                    <div class="bill-info">
+                        <div class="bill-name">${bill.billName}</div>
+                        <div class="bill-date">${formatDate(bill.dueDate)}</div>
+                    </div>
+                    <div class="bill-amount">
+                        ${getCurrencySymbol()}${formatCurrency(bill.amount)}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    },
+    
+    /**
+     * Render expense list
+     */
+    renderExpenses() {
+        const container = document.getElementById('expenseList');
+        if (!container) return;
+        
+        if (AppState.expenses.length === 0) {
+            container.innerHTML = '<div class="empty-state">No expenses added yet</div>';
+            return;
+        }
+        
+        const sorted = sortByDate(AppState.expenses, 'date', false);
+        
+        container.innerHTML = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Amount</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${sorted.map(expense => {
+                        const icon = CategoryService.getIcon(expense.category);
+                        const isIncome = expense.type === 'income';
+                        return `
+                            <tr>
+                                <td>${expense.description}</td>
+                                <td><span class="badge">${icon} ${expense.category}</span></td>
+                                <td>${formatDate(expense.date)}</td>
+                                <td>
+                                    <span class="badge ${isIncome ? 'badge-success' : 'badge-danger'}">
+                                        ${expense.type}
+                                    </span>
+                                </td>
+                                <td class="${isIncome ? 'text-success' : 'text-danger'}">
+                                    ${isIncome ? '+' : '-'}${getCurrencySymbol()}${formatCurrency(expense.amount)}
+                                </td>
+                                <td>
+                                    <button class="btn-icon edit" onclick="handleEditExpense('${expense._id}')" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn-icon delete" onclick="handleDeleteExpense('${expense._id}')" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        `;
+    },
+    
+    /**
+     * Render recurring expenses
+     */
+    renderRecurring() {
+        const container = document.getElementById('recurringGrid');
+        if (!container) return;
+        
+        if (AppState.recurringExpenses.length === 0) {
+            container.innerHTML = '<div class="empty-state">No recurring expenses added yet</div>';
+            return;
+        }
+        
+        container.innerHTML = AppState.recurringExpenses.map(expense => {
+            const icon = CategoryService.getIcon(expense.category);
+            const frequencyLabel = expense.frequency.charAt(0).toUpperCase() + expense.frequency.slice(1);
+            const isActive = expense.isActive !== false;
+            
+            // Calculate next due date
+            const startDate = new Date(expense.startDate);
+            const now = new Date();
+            let nextDue = new Date(startDate);
+            
+            while (nextDue < now) {
+                if (expense.frequency === 'daily') {
+                    nextDue.setDate(nextDue.getDate() + 1);
+                } else if (expense.frequency === 'weekly') {
+                    nextDue.setDate(nextDue.getDate() + 7);
+                } else if (expense.frequency === 'monthly') {
+                    nextDue.setMonth(nextDue.getMonth() + 1);
+                } else if (expense.frequency === 'quarterly') {
+                    nextDue.setMonth(nextDue.getMonth() + 3);
+                } else if (expense.frequency === 'yearly') {
+                    nextDue.setFullYear(nextDue.getFullYear() + 1);
+                }
+            }
+            
+            const daysUntil = getDaysUntil(nextDue);
+            
+            return `
+                <div class="recurring-card ${isActive ? 'active' : 'inactive'}">
+                    <div class="recurring-header">
+                        <h3>${expense.description}</h3>
+                        <span class="recurring-badge ${expense.frequency}">${frequencyLabel}</span>
+                    </div>
+                    <div class="recurring-content">
+                        <div class="recurring-amount">
+                            <span class="amount-label">Amount:</span>
+                            <span class="amount-value">${getCurrencySymbol()}${formatCurrency(expense.amount)}</span>
+                        </div>
+                        <div class="recurring-details">
+                            <div class="detail-item">
+                                <i class="fas fa-calendar"></i>
+                                <span>Next Due: ${formatDate(nextDue)}</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="fas fa-redo"></i>
+                                <span>Frequency: ${expense.frequency}</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="fas fa-tag"></i>
+                                <span>Category: ${icon} ${expense.category}</span>
+                            </div>
+                        </div>
+                        <div class="due-status ${isActive ? '' : 'text-danger'}">
+                            ${isActive ? `Due in ${daysUntil > 0 ? daysUntil : 0} days` : 'Deactivated'}
+                        </div>
+                    </div>
+                    <div class="recurring-actions">
+                        <button class="btn-icon ${isActive ? 'pause' : 'play'}" 
+                                onclick="handleToggleRecurring('${expense._id}')" 
+                                title="${isActive ? 'Deactivate' : 'Activate'}">
+                            <i class="fas fa-${isActive ? 'pause' : 'play'}"></i>
+                        </button>
+                        <button class="btn-icon delete" 
+                                onclick="handleDeleteRecurring('${expense._id}')" 
+                                title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    },
+    
+    /**
+     * Render bills
+     */
+    renderBills() {
+        const container = document.getElementById('remindersContainer');
+        if (!container) return;
+        
+        if (AppState.billReminders.length === 0) {
+            container.innerHTML = '<div class="empty-state">No bill reminders added yet</div>';
+            return;
+        }
+        
+        const sorted = sortByDate(AppState.billReminders, 'dueDate');
+        
+        container.innerHTML = sorted.map(bill => {
+            const daysUntil = getDaysUntil(bill.dueDate);
+            const isOverdue = daysUntil < 0 && !bill.isPaid;
+            const isDueSoon = daysUntil <= (bill.reminderDays || 3) && daysUntil >= 0 && !bill.isPaid;
+            
+            let statusText = 'Pending';
+            let statusClass = 'pending';
+            if (bill.isPaid) {
+                statusText = 'Paid';
+                statusClass = 'paid';
+            } else if (isOverdue) {
+                statusText = 'Overdue';
+                statusClass = 'overdue';
+            } else if (isDueSoon) {
+                statusText = 'Upcoming';
+                statusClass = 'upcoming';
+            }
+            
+            return `
+                <div class="bill-reminder-card ${bill.isPaid ? 'paid' : isOverdue ? 'overdue' : isDueSoon ? 'upcoming' : ''}">
+                    <div class="bill-header">
+                        <div class="bill-title">
+                            <h4>${bill.billName}</h4>
+                            <span class="bill-status ${statusClass}">${statusText}</span>
+                        </div>
+                        <div class="bill-amount">
+                            ${getCurrencySymbol()}${formatCurrency(bill.amount)}
+                        </div>
+                    </div>
+                    <div class="bill-details">
+                        <div class="detail-row">
+                            <span class="label">Due:</span>
+                            <span class="value">${formatDate(bill.dueDate)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Category:</span>
+                            <span class="value">${CategoryService.getIcon(bill.category)} ${bill.category}</span>
+                        </div>
+                        ${!bill.isPaid ? `
+                            <div class="detail-row">
+                                <span class="label">Reminder:</span>
+                                <span class="value ${isOverdue ? 'text-danger' : isDueSoon ? 'text-warning' : ''}">
+                                    ${isOverdue ? 'OVERDUE!' : isDueSoon ? `Due in ${daysUntil} days` : `Due in ${daysUntil} days`}
+                                </span>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="bill-actions">
+                        ${!bill.isPaid ? `
+                            <button class="btn-success btn-sm" onclick="handleMarkBillPaid('${bill._id}')">
+                                <i class="fas fa-check"></i> Mark Paid
+                            </button>
+                        ` : ''}
+                        <button class="btn-icon delete" onclick="handleDeleteBill('${bill._id}')" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        // Render calendar
+        this.renderCalendar();
+    },
+    
+    /**
+     * Render calendar
+     */
+    renderCalendar() {
+        const container = document.getElementById('billCalendar');
+        if (!container) return;
+        
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+        
+        const firstDay = new Date(currentYear, currentMonth, 1);
+        const lastDay = new Date(currentYear, currentMonth + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const firstDayIndex = firstDay.getDay();
+        
+        // Update title
+        const title = document.querySelector('.calendar-section h3');
+        if (title) {
+            title.textContent = `Bill Calendar - ${getMonthName(currentMonth)} ${currentYear}`;
+        }
+        
+        let html = '';
+        
+        // Day headers
+        ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(day => {
+            html += `<div class="calendar-day-header">${day}</div>`;
+        });
+        
+        // Empty cells
+        for (let i = 0; i < firstDayIndex; i++) {
+            html += '<div class="calendar-day empty"></div>';
+        }
+        
+        // Days
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const isToday = day === now.getDate() && currentMonth === now.getMonth() && currentYear === now.getFullYear();
+            
+            const billsOnDay = AppState.billReminders.filter(bill => {
+                const billDate = new Date(bill.dueDate);
+                return !bill.isPaid && 
+                       billDate.getDate() === day && 
+                       billDate.getMonth() === currentMonth && 
+                       billDate.getFullYear() === currentYear;
+            });
+            
+            const hasBill = billsOnDay.length > 0;
+            let dayClass = 'calendar-day';
+            if (isToday) dayClass += ' today';
+            if (hasBill) dayClass += ' has-bill';
+            
+            html += `
+                <div class="${dayClass}" data-date="${dateStr}" ${hasBill ? `data-bills='${JSON.stringify(billsOnDay)}'` : ''}>
+                    ${day}
+                    ${hasBill ? `<span class="bill-count">${billsOnDay.length}</span>` : ''}
+                </div>
+            `;
+        }
+        
+        container.innerHTML = html;
+        
+        // Add click handlers
+        container.querySelectorAll('.calendar-day.has-bill').forEach(el => {
+            el.addEventListener('click', function() {
+                const bills = JSON.parse(this.dataset.bills || '[]');
+                if (bills.length > 0) {
+                    const billList = bills.map(bill => 
+                        `• ${bill.billName}: ${getCurrencySymbol()}${formatCurrency(bill.amount)}`
+                    ).join('\n');
+                    showNotification(`Bills due on ${this.dataset.date}:\n${billList}`, 'info', 5000);
+                }
+            });
+        });
+    },
+    
+    /**
+     * Render split expenses
+     */
+    renderSplitExpenses() {
+        const container = document.getElementById('splitContainer');
+        if (!container) return;
+        
+        if (AppState.splitExpenses.length === 0) {
+            container.innerHTML = '<div class="empty-state">No split expenses added yet</div>';
+            return;
+        }
+        
+        container.innerHTML = AppState.splitExpenses.map(expense => {
+            const paidCount = expense.members.filter(m => m.isPaid).length;
+            const totalCount = expense.members.length;
+            const isSettled = paidCount === totalCount;
+            
+            return `
+                <div class="split-card">
+                    <div class="split-header">
+                        <div>
+                            <h3>${expense.title}</h3>
+                            <p class="split-subtitle">
+                                Split among ${totalCount} people • Total: ${getCurrencySymbol()}${formatCurrency(expense.totalAmount)}
+                            </p>
+                        </div>
+                        <span class="split-status ${isSettled ? 'settled' : 'pending'}">
+                            ${isSettled ? '✅ Settled' : '⏳ Pending'}
+                        </span>
+                    </div>
+                    
+                    <div class="split-details">
+                        <div class="split-members-list">
+                            ${expense.members.map((member, index) => `
+                                <div class="split-member-detail">
+                                    <div class="member-info">
+                                        <span class="member-name">${member.name}</span>
+                                        <span class="member-status ${member.isPaid ? 'paid' : 'unpaid'}">
+                                            ${member.isPaid ? 'Paid' : 'Unpaid'}
+                                        </span>
+                                    </div>
+                                    <div class="member-actions">
+                                        <span class="member-amount">${getCurrencySymbol()}${formatCurrency(member.amount)}</span>
+                                        <button class="${member.isPaid ? 'btn-mark-unpaid' : 'btn-mark-paid'}" 
+                                                onclick="handleToggleSplitMember('${expense._id}', ${index})">
+                                            <i class="fas fa-${member.isPaid ? 'times' : 'check'}"></i>
+                                            ${member.isPaid ? 'Unpaid' : 'Paid'}
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="split-actions">
+                        <button class="btn-secondary" onclick="handleEditSplitExpense('${expense._id}')">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        ${isSettled ? `
+                            <button class="btn-unsettle" onclick="handleUnsettleSplit('${expense._id}')">
+                                <i class="fas fa-undo"></i> Unsettle
+                            </button>
+                        ` : `
+                            <button class="btn-success" onclick="handleSettleSplit('${expense._id}')">
+                                <i class="fas fa-check"></i> Settle Up
+                            </button>
+                        `}
+                        <button class="btn-danger" onclick="handleDeleteSplit('${expense._id}')">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+};
+
+// ===================================================================
+// 14. EVENT HANDLERS
+// ===================================================================
+
+/**
+ * Handle expense form submission
+ */
+async function handleAddExpense() {
+    const description = document.getElementById('title')?.value?.trim();
+    const amount = parseFloat(document.getElementById('amount')?.value);
+    const category = document.getElementById('category')?.value;
+    const date = document.getElementById('expenseDate')?.value;
+    
     if (!description || !amount || !category || !date) {
         showNotification('Please fill in all required fields', 'error');
         return;
     }
-
+    
+    showLoading(true);
+    
     try {
         const expenseData = {
             description,
@@ -483,1733 +2052,383 @@ async function addExpense() {
             type: 'expense',
             paymentMethod: 'cash'
         };
-
-        // Check if we're updating an existing expense
-        if (editingExpenseId) {
-            const data = await apiRequest(`/expenses/${editingExpenseId}`, {
-                method: 'PUT',
-                body: JSON.stringify(expenseData)
-            });
-
-            if (data.success) {
-                const index = expenses.findIndex(e => e._id === editingExpenseId);
-                if (index !== -1) {
-                    expenses[index] = data.expense;
-                }
-                showNotification(data.message, 'success');
+        
+        let result;
+        if (AppState.editingExpenseId) {
+            result = await ExpenseService.update(AppState.editingExpenseId, expenseData);
+            if (result.success) {
+                showNotification('Expense updated successfully', 'success');
+                AppState.editingExpenseId = null;
+                document.querySelector('.btn-add').innerHTML = '<i class="fas fa-plus-circle"></i> Add Expense';
             }
         } else {
-            const data = await apiRequest('/expenses', {
-                method: 'POST',
-                body: JSON.stringify(expenseData)
-            });
-
-            if (data.success) {
-                expenses.push(data.expense);
-                showNotification(data.message, 'success');
+            result = await ExpenseService.create(expenseData);
+            if (result.success) {
+                showNotification('Expense added successfully', 'success');
             }
         }
         
-        // Reset form
-        document.getElementById('title').value = '';
-        document.getElementById('amount').value = '';
-        document.getElementById('category').value = '';
-        document.getElementById('expenseDate').valueAsDate = new Date();
-        
-        // Reset button
-        const addButton = document.querySelector('.btn-add');
-        addButton.innerHTML = '<i class="fas fa-plus-circle"></i> Add Expense';
-        addButton.onclick = addExpense;
-        
-        editingExpenseId = null;
-        updateAllDisplays();
-    } catch (error) {
-        console.error('Add expense error:', error);
-        showNotification(error.message || 'Failed to add expense', 'error');
-    }
-}
-
-function loadExpenses() {
-    const container = document.getElementById('expenseList');
-    if (!container) return;
-
-    // Calculate total
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    
-    const monthlyExpenses = expenses.filter(e => {
-        const expenseDate = new Date(e.date);
-        return expenseDate.getMonth() === currentMonth && 
-               expenseDate.getFullYear() === currentYear;
-    });
-    
-    const total = monthlyExpenses.reduce((sum, e) => {
-        return e.type === 'income' ? sum + e.amount : sum - e.amount;
-    }, 0);
-    
-    // Update total display
-    const expenseTotalEl = document.getElementById('expenseTotal');
-    if (expenseTotalEl) {
-        expenseTotalEl.innerHTML = `${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(Math.abs(total))}`;
-    }
-
-    if (expenses.length === 0) {
-        container.innerHTML = '<div class="empty-state">No expenses added yet</div>';
-        return;
-    }
-
-    const sortedExpenses = [...expenses].sort((a, b) => new Date(b.date) - new Date(a.date));
-    
-    const html = `
-        <table>
-            <thead>
-                <tr>
-                    <th>Description</th>
-                    <th>Category</th>
-                    <th>Date</th>
-                    <th>Type</th>
-                    <th>Amount</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${sortedExpenses.map(expense => {
-                    const categoryInfo = getAllCategories().find(c => c.name === expense.category) || DEFAULT_CATEGORIES[7];
-                    return `
-                        <tr>
-                            <td>${expense.description}</td>
-                            <td><span class="badge">${categoryInfo.icon} ${expense.category}</span></td>
-                            <td>${formatDate(expense.date)}</td>
-                            <td><span class="badge ${expense.type === 'income' ? 'badge-success' : 'badge-danger'}">${expense.type}</span></td>
-                            <td class="${expense.type === 'income' ? 'text-success' : 'text-danger'}">
-                                ${expense.type === 'income' ? '+' : '-'}${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(expense.amount)}
-                            </td>
-                            <td>
-                                <button class="btn-icon" onclick="editExpense('${expense._id}')" title="Edit">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn-icon delete" onclick="deleteExpense('${expense._id}')" title="Delete">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    `;
-                }).join('')}
-            </tbody>
-        </table>
-    `;
-
-    container.innerHTML = html;
-}
-
-async function deleteExpense(id) {
-    if (!confirm('Are you sure you want to delete this expense?')) return;
-
-    try {
-        const data = await apiRequest(`/expenses/${id}`, {
-            method: 'DELETE'
-        });
-
-        if (data.success) {
-            expenses = expenses.filter(e => e._id !== id);
-            showNotification(data.message, 'success');
-            updateAllDisplays();
+        if (result.success) {
+            // Reset form
+            document.getElementById('title').value = '';
+            document.getElementById('amount').value = '';
+            document.getElementById('category').value = '';
+            document.getElementById('expenseDate').valueAsDate = new Date();
+            
+            await refreshAllData();
         }
     } catch (error) {
-        showNotification('Failed to delete expense', 'error');
+        showNotification(error.message || 'Failed to save expense', 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
-function editExpense(id) {
-    const expense = expenses.find(e => e._id === id);
+/**
+ * Handle edit expense
+ */
+async function handleEditExpense(id) {
+    const expense = AppState.expenses.find(e => e._id === id);
     if (!expense) {
         showNotification('Expense not found', 'error');
         return;
     }
-
-    // Fill form with expense data
+    
     document.getElementById('title').value = expense.description;
     document.getElementById('amount').value = expense.amount;
     document.getElementById('category').value = expense.category;
+    document.getElementById('expenseDate').value = formatDateInput(expense.date);
     
-    // Format date properly
-    const date = new Date(expense.date);
-    const formattedDate = date.toISOString().split('T')[0];
-    document.getElementById('expenseDate').value = formattedDate;
+    document.querySelector('.btn-add').innerHTML = '<i class="fas fa-save"></i> Update Expense';
+    AppState.editingExpenseId = id;
     
-    // Change button to update mode
-    const addButton = document.querySelector('.btn-add');
-    addButton.innerHTML = '<i class="fas fa-save"></i> Update Expense';
-    
-    // Set editing expense ID
-    editingExpenseId = id;
-    
-    // Scroll to form
     showSection('expenses');
     document.querySelector('.add-expense-card').scrollIntoView({ behavior: 'smooth' });
-    
     showNotification('Edit expense details and click Update', 'info');
 }
 
-/* ======================
-   DASHBOARD FUNCTIONS
-====================== */
-function updateDashboard() {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    const monthlyExpenses = expenses.filter(e => {
-        const expenseDate = new Date(e.date);
-        return e.type === 'expense' && 
-               expenseDate.getMonth() === currentMonth && 
-               expenseDate.getFullYear() === currentYear;
-    });
-
-    const monthlyIncomeTransactions = expenses.filter(e => {
-        const expenseDate = new Date(e.date);
-        return e.type === 'income' && 
-               expenseDate.getMonth() === currentMonth && 
-               expenseDate.getFullYear() === currentYear;
-    });
-
-    const totalExpenses = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const totalMonthlyIncome = monthlyIncomeTransactions.reduce((sum, e) => sum + e.amount, 0);
-    const actualIncome = monthlyIncome > 0 ? monthlyIncome : totalMonthlyIncome;
-    const savings = actualIncome - totalExpenses;
-    const savingsRate = actualIncome > 0 ? ((savings / actualIncome) * 100) : 0;
-
-    // Update dashboard stats with correct IDs
-    const totalExpenseEl = document.getElementById('totalExpense');
-    const balanceEl = document.getElementById('balance');
-    const savingsRateEl = document.getElementById('savingsRate');
-
-    if (totalExpenseEl) totalExpenseEl.textContent = formatCurrency(totalExpenses);
-    if (balanceEl) balanceEl.textContent = formatCurrency(savings);
-    if (savingsRateEl) savingsRateEl.textContent = `${savingsRate.toFixed(1)}%`;
-
-    updateRecentTransactions();
-    updateCategoryBreakdown();
-    updateUpcomingBills();
-}
-
-function updateRecentTransactions() {
-    const container = document.getElementById('recentExpenseList');
-    if (!container) return;
-
-    const recent = [...expenses]
-        .sort((a, b) => new Date(b.date) - new Date(a.date))
-        .slice(0, 5);
-
-    if (recent.length === 0) {
-        container.innerHTML = '<div class="empty-state">No recent transactions</div>';
-        return;
-    }
-
-    const html = recent.map(expense => {
-        const categoryInfo = getAllCategories().find(c => c.name === expense.category) || DEFAULT_CATEGORIES[7];
-        return `
-            <div class="transaction-item">
-                <div class="transaction-icon" style="background: ${categoryInfo.color}20; color: ${categoryInfo.color}">
-                    ${categoryInfo.icon}
-                </div>
-                <div class="transaction-details">
-                    <div class="transaction-name">${expense.description}</div>
-                    <div class="transaction-date">${formatDate(expense.date)}</div>
-                </div>
-                <div class="transaction-amount ${expense.type === 'income' ? 'text-success' : 'text-danger'}">
-                    ${expense.type === 'income' ? '+' : '-'}${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(expense.amount)}
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    container.innerHTML = html;
-}
-
-function updateCategoryBreakdown() {
-    const container = document.getElementById('categoryBreakdown');
-    if (!container) {
-        console.log('categoryBreakdown container not found - skipping');
-        return;
-    }
-
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    const monthlyExpenses = expenses.filter(e => {
-        const expenseDate = new Date(e.date);
-        return e.type === 'expense' && 
-               expenseDate.getMonth() === currentMonth && 
-               expenseDate.getFullYear() === currentYear;
-    });
-
-    const categoryTotals = {};
-    monthlyExpenses.forEach(expense => {
-        if (!categoryTotals[expense.category]) {
-            categoryTotals[expense.category] = 0;
-        }
-        categoryTotals[expense.category] += expense.amount;
-    });
-
-    const sortedCategories = Object.entries(categoryTotals)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5);
-
-    if (sortedCategories.length === 0) {
-        container.innerHTML = '<div class="empty-state">No expenses this month</div>';
-        return;
-    }
-
-    const totalExpenses = Object.values(categoryTotals).reduce((sum, val) => sum + val, 0);
-
-    const html = sortedCategories.map(([category, amount]) => {
-        const categoryInfo = getAllCategories().find(c => c.name === category) || DEFAULT_CATEGORIES[7];
-        const percentage = (amount / totalExpenses) * 100;
-        
-        return `
-            <div class="category-breakdown-item">
-                <div class="category-breakdown-header">
-                    <span class="category-icon">${categoryInfo.icon}</span>
-                    <span class="category-name">${category}</span>
-                    <span class="category-amount">${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(amount)}</span>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: ${percentage}%; background: ${categoryInfo.color}"></div>
-                </div>
-                <div class="category-percentage">${percentage.toFixed(1)}%</div>
-            </div>
-        `;
-    }).join('');
-
-    container.innerHTML = html;
-}
-
-function updateUpcomingBills() {
-    const container = document.getElementById('upcomingBills');
-    if (!container) {
-        console.log('upcomingBills container not found - skipping');
-        return;
-    }
-
-    const now = new Date();
-    const upcoming = billReminders
-        .filter(bill => !bill.isPaid && new Date(bill.dueDate) >= now)
-        .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
-        .slice(0, 3);
-
-    if (upcoming.length === 0) {
-        container.innerHTML = '<div class="empty-state">No upcoming bills</div>';
-        return;
-    }
-
-    const html = upcoming.map(bill => {
-        const dueDate = new Date(bill.dueDate);
-        const daysUntil = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
-        const isOverdue = daysUntil < 0;
-        const isDueSoon = daysUntil <= bill.reminderDays && daysUntil >= 0;
-
-        return `
-            <div class="bill-item ${isOverdue ? 'overdue' : isDueSoon ? 'due-soon' : ''}">
-                <div class="bill-info">
-                    <div class="bill-name">${bill.billName}</div>
-                    <div class="bill-date">${formatDate(bill.dueDate)}</div>
-                </div>
-                <div class="bill-amount">
-                    ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(bill.amount)}
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    container.innerHTML = html;
-}
-
-/* ======================
-   ANALYTICS FUNCTIONS
-====================== */
-function loadAnalytics() {
-    updateExpenseStats();
-    updateTrendChart();
-    updateIncomeExpenseSavingsChart();
-    updateMonthlyTrendChart();
-    updateCategoryChart();
-    updateDetailedCategoryBreakdown();
-}
-
-function updateExpenseStats() {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    const monthlyExpenses = expenses.filter(e => {
-        const expenseDate = new Date(e.date);
-        return e.type === 'expense' && 
-               expenseDate.getMonth() === currentMonth && 
-               expenseDate.getFullYear() === currentYear;
-    });
-
-    const monthlyIncomeTransactions = expenses.filter(e => {
-        const expenseDate = new Date(e.date);
-        return e.type === 'income' && 
-               expenseDate.getMonth() === currentMonth && 
-               expenseDate.getFullYear() === currentYear;
-    });
-
-    const totalExpenses = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const totalMonthlyIncome = monthlyIncomeTransactions.reduce((sum, e) => sum + e.amount, 0);
-    const actualIncome = monthlyIncome > 0 ? monthlyIncome : totalMonthlyIncome;
-    const savings = actualIncome - totalExpenses;
-
-    const statsExpensesEl = document.getElementById('statsExpenses');
-    const statsIncomeEl = document.getElementById('statsIncome');
-    const statsSavingsEl = document.getElementById('statsSavings');
-    const statsAverageEl = document.getElementById('statsAverage');
-
-    if (statsExpensesEl) statsExpensesEl.textContent = `${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(totalExpenses)}`;
-    if (statsIncomeEl) statsIncomeEl.textContent = `${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(actualIncome)}`;
-    if (statsSavingsEl) statsSavingsEl.textContent = `${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(savings)}`;
+/**
+ * Handle delete expense
+ */
+async function handleDeleteExpense(id) {
+    if (!confirm('Are you sure you want to delete this expense?')) return;
     
-    const avgExpense = monthlyExpenses.length > 0 ? totalExpenses / monthlyExpenses.length : 0;
-    if (statsAverageEl) statsAverageEl.textContent = `${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(avgExpense)}`;
-}
-
-function updateTrendChart() {
-    const canvas = document.getElementById('trendChart');
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    
-    if (trendChart) {
-        trendChart.destroy();
-    }
-
-    // Get last 6 months data
-    const last6Months = [];
-    const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        last6Months.push(date);
-    }
-
-    const monthlyData = last6Months.map(date => {
-        const month = date.getMonth();
-        const year = date.getFullYear();
-        
-        // Calculate expenses for the month
-        const monthExpenses = expenses.filter(e => {
-            const expenseDate = new Date(e.date);
-            return e.type === 'expense' &&
-                   expenseDate.getMonth() === month &&
-                   expenseDate.getFullYear() === year;
-        }).reduce((sum, e) => sum + e.amount, 0);
-
-        // Calculate income for the month
-        const monthIncome = expenses.filter(e => {
-            const expenseDate = new Date(e.date);
-            return e.type === 'income' &&
-                   expenseDate.getMonth() === month &&
-                   expenseDate.getFullYear() === year;
-        }).reduce((sum, e) => sum + e.amount, 0);
-
-        // Use actual income from transactions or user's monthly income
-        const actualIncome = monthIncome > 0 ? monthIncome : (month === now.getMonth() && year === now.getFullYear() ? monthlyIncome : monthlyIncome);
-        const savings = Math.max(0, actualIncome - monthExpenses);
-
-        return {
-            income: actualIncome,
-            expenses: monthExpenses,
-            savings: savings
-        };
-    });
-
-    trendChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: last6Months.map(d => d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })),
-            datasets: [
-                {
-                    label: 'Income',
-                    data: monthlyData.map(d => d.income),
-                    backgroundColor: 'rgba(16, 185, 129, 0.8)',
-                    borderColor: 'rgb(16, 185, 129)',
-                    borderWidth: 2
-                },
-                {
-                    label: 'Expenses',
-                    data: monthlyData.map(d => d.expenses),
-                    backgroundColor: 'rgba(239, 68, 68, 0.8)',
-                    borderColor: 'rgb(239, 68, 68)',
-                    borderWidth: 2
-                },
-                {
-                    label: 'Savings',
-                    data: monthlyData.map(d => d.savings),
-                    backgroundColor: 'rgba(59, 130, 246, 0.8)',
-                    borderColor: 'rgb(59, 130, 246)',
-                    borderWidth: 2
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return context.dataset.label + ': ' + CURRENCY_SYMBOLS[userCurrency] + formatCurrency(context.parsed.y);
-                        }
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return CURRENCY_SYMBOLS[userCurrency] + formatCurrency(value);
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
-
-function updateIncomeExpenseSavingsChart() {
-    const canvas = document.getElementById('incomeExpenseChart');
-    if (!canvas) {
-        console.log('incomeExpenseChart canvas not found');
-        return;
-    }
-
-    const ctx = canvas.getContext('2d');
-    
-    if (incomeExpenseSavingsChart) {
-        incomeExpenseSavingsChart.destroy();
-    }
-
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    const monthlyExpenses = expenses.filter(e => {
-        const expenseDate = new Date(e.date);
-        return e.type === 'expense' && 
-               expenseDate.getMonth() === currentMonth && 
-               expenseDate.getFullYear() === currentYear;
-    });
-
-    const monthlyIncomeTransactions = expenses.filter(e => {
-        const expenseDate = new Date(e.date);
-        return e.type === 'income' && 
-               expenseDate.getMonth() === currentMonth && 
-               expenseDate.getFullYear() === currentYear;
-    });
-
-    const totalExpenses = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const totalMonthlyIncome = monthlyIncomeTransactions.reduce((sum, e) => sum + e.amount, 0);
-    const actualIncome = monthlyIncome > 0 ? monthlyIncome : totalMonthlyIncome;
-    const savings = actualIncome - totalExpenses;
-
-    incomeExpenseSavingsChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Income', 'Expenses', 'Savings'],
-            datasets: [{
-                data: [actualIncome, totalExpenses, Math.max(0, savings)],
-                backgroundColor: [
-                    'rgba(16, 185, 129, 0.8)',
-                    'rgba(239, 68, 68, 0.8)',
-                    'rgba(59, 130, 246, 0.8)'
-                ],
-                borderColor: [
-                    'rgb(16, 185, 129)',
-                    'rgb(239, 68, 68)',
-                    'rgb(59, 130, 246)'
-                ],
-                borderWidth: 2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'bottom'
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const label = context.label || '';
-                            const value = context.parsed || 0;
-                            return `${label}: ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(value)}`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
-
-function updateMonthlyTrendChart() {
-    const canvas = document.getElementById('monthlyTrendChart');
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    
-    if (monthlyTrendChart) {
-        monthlyTrendChart.destroy();
-    }
-
-    const now = new Date();
-    const last6Months = [];
-    for (let i = 5; i >= 0; i--) {
-        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        last6Months.push(date);
-    }
-
-    const monthlyData = last6Months.map(date => {
-        const month = date.getMonth();
-        const year = date.getFullYear();
-        
-        const monthExpenses = expenses.filter(e => {
-            const expenseDate = new Date(e.date);
-            return e.type === 'expense' &&
-                   expenseDate.getMonth() === month &&
-                   expenseDate.getFullYear() === year;
-        }).reduce((sum, e) => sum + e.amount, 0);
-
-        const monthIncome = expenses.filter(e => {
-            const expenseDate = new Date(e.date);
-            return e.type === 'income' &&
-                   expenseDate.getMonth() === month &&
-                   expenseDate.getFullYear() === year;
-        }).reduce((sum, e) => sum + e.amount, 0);
-
-        return {
-            expenses: monthExpenses,
-            income: monthIncome || monthlyIncome
-        };
-    });
-
-    monthlyTrendChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: last6Months.map(d => d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })),
-            datasets: [
-                {
-                    label: 'Income',
-                    data: monthlyData.map(d => d.income),
-                    borderColor: 'rgb(16, 185, 129)',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                },
-                {
-                    label: 'Expenses',
-                    data: monthlyData.map(d => d.expenses),
-                    borderColor: 'rgb(239, 68, 68)',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return CURRENCY_SYMBOLS[userCurrency] + formatCurrency(value);
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
-
-function updateCategoryChart() {
-    const canvas = document.getElementById('categoryChart');
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    
-    if (categoryChart) {
-        categoryChart.destroy();
-    }
-
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    const monthlyExpenses = expenses.filter(e => {
-        const expenseDate = new Date(e.date);
-        return e.type === 'expense' && 
-               expenseDate.getMonth() === currentMonth && 
-               expenseDate.getFullYear() === currentYear;
-    });
-
-    const categoryTotals = {};
-    monthlyExpenses.forEach(expense => {
-        if (!categoryTotals[expense.category]) {
-            categoryTotals[expense.category] = 0;
-        }
-        categoryTotals[expense.category] += expense.amount;
-    });
-
-    const sortedCategories = Object.entries(categoryTotals)
-        .sort((a, b) => b[1] - a[1]);
-
-    const labels = sortedCategories.map(([category]) => category);
-    const data = sortedCategories.map(([, amount]) => amount);
-    const colors = sortedCategories.map(([category]) => {
-        const categoryInfo = getAllCategories().find(c => c.name === category) || DEFAULT_CATEGORIES[7];
-        return categoryInfo.color;
-    });
-
-    categoryChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: labels,
-            datasets: [{
-                data: data,
-                backgroundColor: colors,
-                borderWidth: 2,
-                borderColor: '#fff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'right'
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const label = context.label || '';
-                            const value = context.parsed || 0;
-                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const percentage = ((value / total) * 100).toFixed(1);
-                            return `${label}: ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(value)} (${percentage}%)`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
-
-function updateDetailedCategoryBreakdown() {
-    const canvas = document.getElementById('detailedCategoryChart');
-    if (!canvas) {
-        console.log('detailedCategoryChart canvas not found');
-        return;
-    }
-
-    const ctx = canvas.getContext('2d');
-    
-    if (detailedCategoryChart) {
-        detailedCategoryChart.destroy();
-    }
-
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    const monthlyExpenses = expenses.filter(e => {
-        const expenseDate = new Date(e.date);
-        return e.type === 'expense' && 
-               expenseDate.getMonth() === currentMonth && 
-               expenseDate.getFullYear() === currentYear;
-    });
-
-    const categoryData = {};
-    monthlyExpenses.forEach(expense => {
-        if (!categoryData[expense.category]) {
-            categoryData[expense.category] = {
-                total: 0,
-                count: 0
-            };
-        }
-        categoryData[expense.category].total += expense.amount;
-        categoryData[expense.category].count++;
-    });
-
-    const sortedCategories = Object.entries(categoryData)
-        .sort((a, b) => b[1].total - a[1].total)
-        .slice(0, 8); // Top 8 categories
-
-    if (sortedCategories.length === 0) {
-        detailedCategoryChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['No Data'],
-                datasets: [{
-                    label: 'Expenses',
-                    data: [0],
-                    backgroundColor: 'rgba(67, 97, 238, 0.8)'
-                }]
-            }
-        });
-        return;
-    }
-
-    const labels = sortedCategories.map(([category]) => category);
-    const data = sortedCategories.map(([, data]) => data.total);
-    const colors = sortedCategories.map(([category]) => {
-        const categoryInfo = getAllCategories().find(c => c.name === category) || DEFAULT_CATEGORIES[7];
-        return categoryInfo.color;
-    });
-
-    detailedCategoryChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Amount Spent',
-                data: data,
-                backgroundColor: colors.map(c => c + 'CC'),
-                borderColor: colors,
-                borderWidth: 2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const value = context.parsed.y || 0;
-                            return `${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(value)}`;
-                        }
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return CURRENCY_SYMBOLS[userCurrency] + formatCurrency(value);
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
-
-/* ======================
-   CHART RESIZING FUNCTION
-====================== */
-function updateChartSizes() {
-    const charts = [
-        trendChart,
-        incomeExpenseSavingsChart,
-        monthlyTrendChart,
-        categoryChart,
-        detailedCategoryChart
-    ];
-    
-    charts.forEach(chart => {
-        if (chart) {
-            chart.resize();
-            chart.update();
-        }
-    });
-}
-
-/* ======================
-   CATEGORY MANAGEMENT
-====================== */
-function initializeCategories() {
-    updateCategoryDropdowns();
-    updateCategoryManagement();
-}
-
-function getAllCategories() {
-    return [...DEFAULT_CATEGORIES, ...customCategories];
-}
-
-function updateCategoryDropdowns() {
-    const dropdowns = ['category', 'recurringCategory', 'billCategory', 'splitCategory'];
-    const allCategories = getAllCategories();
-
-    dropdowns.forEach(dropdownId => {
-        const dropdown = document.getElementById(dropdownId);
-        if (!dropdown) return;
-
-        const currentValue = dropdown.value;
-        
-        dropdown.innerHTML = `
-            <option value="">Select Category</option>
-            ${allCategories.map(cat => 
-                `<option value="${cat.name}">${cat.icon} ${cat.name}</option>`
-            ).join('')}
-            <option value="__add_new__" class="add-category-option">➕ Add New Category</option>
-        `;
-
-        if (currentValue && currentValue !== '__add_new__') {
-            dropdown.value = currentValue;
-        }
-    });
-}
-
-function showAddCategoryModal() {
-    editingCategoryIndex = -1;
-    document.getElementById('newCategoryName').value = '';
-    document.getElementById('newCategoryIcon').value = '📝';
-    document.getElementById('newCategoryColor').value = '#FF6B6B';
-    document.getElementById('addCategoryModal').classList.remove('hidden');
-}
-
-function closeAddCategoryModal() {
-    document.getElementById('addCategoryModal').classList.add('hidden');
-    editingCategoryIndex = -1;
-}
-
-function showManageCategoriesModal() {
-    updateCategoryManagement();
-    updateDefaultCategoriesDisplay();
-    document.getElementById('manageCategoriesModal').classList.remove('hidden');
-}
-
-function closeManageCategoriesModal() {
-    document.getElementById('manageCategoriesModal').classList.add('hidden');
-}
-
-async function saveNewCategory() {
-    const name = document.getElementById('newCategoryName').value.trim();
-    const icon = document.getElementById('newCategoryIcon').value;
-    const color = document.getElementById('newCategoryColor').value;
-
-    if (!name) {
-        showNotification('Please enter a category name', 'error');
-        return;
-    }
-
+    showLoading(true);
     try {
-        const categoryData = { name, icon, color };
-
-        if (editingCategoryIndex >= 0) {
-            // Update existing category
-            const categoryId = customCategories[editingCategoryIndex]._id;
-            const data = await apiRequest(`/categories/${categoryId}`, {
-                method: 'PUT',
-                body: JSON.stringify(categoryData)
-            });
-
-            if (data.success) {
-                customCategories[editingCategoryIndex] = data.category;
-                showNotification(data.message, 'success');
-            }
-        } else {
-            // Create new category
-            const data = await apiRequest('/categories', {
-                method: 'POST',
-                body: JSON.stringify(categoryData)
-            });
-
-            if (data.success) {
-                customCategories.push(data.category);
-                showNotification(data.message, 'success');
-            }
-        }
-
-        closeAddCategoryModal();
-        updateCategoryDropdowns();
-        updateCategoryManagement();
-    } catch (error) {
-        console.error('Save category error:', error);
-        showNotification(error.message || 'Failed to save category', 'error');
-    }
-}
-
-function updateDefaultCategoriesDisplay() {
-    const container = document.getElementById('defaultCategoriesList');
-    if (!container) return;
-
-    const html = DEFAULT_CATEGORIES.map(category => {
-        const categoryExpenses = expenses.filter(e => e.category === category.name);
-        const count = categoryExpenses.length;
-
-        return `
-            <div class="category-item">
-                <span class="category-icon" style="color: ${category.color}">${category.icon}</span>
-                <div class="category-info">
-                    <div class="category-name">${category.name}</div>
-                    <div class="category-count">${count} expense${count !== 1 ? 's' : ''}</div>
-                </div>
-                <span class="category-badge">Default</span>
-            </div>
-        `;
-    }).join('');
-
-    container.innerHTML = html;
-}
-
-function updateCategoryManagement() {
-    const container = document.getElementById('customCategoriesList');
-    if (!container) return;
-
-    if (customCategories.length === 0) {
-        container.innerHTML = '<div class="empty-state">No custom categories yet</div>';
-        return;
-    }
-
-    const html = customCategories.map((category, index) => {
-        const categoryExpenses = expenses.filter(e => e.category === category.name);
-        const count = categoryExpenses.length;
-
-        return `
-            <div class="category-item">
-                <span class="category-icon" style="color: ${category.color}">${category.icon}</span>
-                <div class="category-info">
-                    <div class="category-name">${category.name}</div>
-                    <div class="category-count">${count} expense${count !== 1 ? 's' : ''}</div>
-                </div>
-                <div class="category-actions">
-                    <button class="btn-icon edit" onclick="editCategory(${index})" title="Edit">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn-icon delete" onclick="deleteCategory('${category._id}')" title="Delete">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    container.innerHTML = html;
-}
-
-function editCategory(index) {
-    editingCategoryIndex = index;
-    const category = customCategories[index];
-    
-    document.getElementById('newCategoryName').value = category.name;
-    document.getElementById('newCategoryIcon').value = category.icon;
-    document.getElementById('newCategoryColor').value = category.color;
-    document.getElementById('addCategoryModal').classList.remove('hidden');
-}
-
-async function deleteCategory(id) {
-    if (!confirm('Are you sure you want to delete this category?')) return;
-
-    try {
-        const data = await apiRequest(`/categories/${id}`, {
-            method: 'DELETE'
-        });
-
-        if (data.success) {
-            customCategories = customCategories.filter(c => c._id !== id);
-            showNotification(data.message, 'success');
-            updateCategoryDropdowns();
-            updateCategoryManagement();
+        const result = await ExpenseService.delete(id);
+        if (result.success) {
+            showNotification('Expense deleted successfully', 'success');
+            await refreshAllData();
         }
     } catch (error) {
-        console.error('Delete category error:', error);
-        showNotification(error.message || 'Failed to delete category', 'error');
+        showNotification(error.message || 'Failed to delete expense', 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
-function manageCategories() {
-    showManageCategoriesModal();
+/**
+ * Handle toggle recurring expense
+ */
+async function handleToggleRecurring(id) {
+    showLoading(true);
+    try {
+        const result = await RecurringService.toggle(id);
+        if (result.success) {
+            showNotification('Recurring expense toggled', 'success');
+            UIRenderer.renderRecurring();
+        }
+    } catch (error) {
+        showNotification(error.message || 'Failed to toggle recurring expense', 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
-/* ======================
-   RECURRING EXPENSES
-====================== */
-function showAddRecurringModal() {
-    const modal = document.getElementById('addRecurringModal');
-    if (modal) modal.classList.remove('hidden');
+/**
+ * Handle delete recurring expense
+ */
+async function handleDeleteRecurring(id) {
+    if (!confirm('Are you sure you want to delete this recurring expense?')) return;
+    
+    showLoading(true);
+    try {
+        const result = await RecurringService.delete(id);
+        if (result.success) {
+            showNotification('Recurring expense deleted', 'success');
+            UIRenderer.renderRecurring();
+        }
+    } catch (error) {
+        showNotification(error.message || 'Failed to delete recurring expense', 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
-function closeAddRecurringModal() {
-    const modal = document.getElementById('addRecurringModal');
-    if (modal) modal.classList.add('hidden');
-}
-
-async function addRecurringExpense() {
-    const description = document.getElementById('recurringTitle').value.trim();
-    const amount = parseFloat(document.getElementById('recurringAmount').value);
-    const category = document.getElementById('recurringCategory').value;
-    const frequency = document.getElementById('recurringFrequency').value;
-    const startDate = document.getElementById('recurringStartDate').value;
-
+/**
+ * Handle add recurring expense
+ */
+async function handleAddRecurring() {
+    const description = document.getElementById('recurringTitle')?.value?.trim();
+    const amount = parseFloat(document.getElementById('recurringAmount')?.value);
+    const category = document.getElementById('recurringCategory')?.value;
+    const frequency = document.getElementById('recurringFrequency')?.value;
+    const startDate = document.getElementById('recurringStartDate')?.value;
+    
     if (!description || !amount || !category || !frequency || !startDate) {
         showNotification('Please fill in all required fields', 'error');
         return;
     }
-
+    
+    showLoading(true);
     try {
-        const recurringData = {
+        const result = await RecurringService.create({
             description,
             amount,
             category,
             frequency,
             startDate
-        };
-
-        const data = await apiRequest('/recurring', {
-            method: 'POST',
-            body: JSON.stringify(recurringData)
         });
-
-        if (data.success) {
-            recurringExpenses.push(data.recurringExpense);
-            
-            // Reset form
+        
+        if (result.success) {
+            showNotification('Recurring expense added', 'success');
             document.getElementById('recurringTitle').value = '';
             document.getElementById('recurringAmount').value = '';
             document.getElementById('recurringCategory').value = '';
             document.getElementById('recurringFrequency').value = '';
             document.getElementById('recurringStartDate').value = '';
             
-            closeAddRecurringModal();
-            showNotification(data.message, 'success');
-            updateRecurringExpensesDisplay();
+            closeModal('addRecurringModal');
+            UIRenderer.renderRecurring();
         }
     } catch (error) {
-        console.error('Add recurring expense error:', error);
         showNotification(error.message || 'Failed to add recurring expense', 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
-// Alias for HTML compatibility
-async function saveRecurringExpense() {
-    await addRecurringExpense();
-}
-
-function updateRecurringExpensesDisplay() {
-    const container = document.getElementById('recurringGrid');
-    if (!container) {
-        console.log('recurringGrid container not found');
-        return;
-    }
-
-    if (recurringExpenses.length === 0) {
-        container.innerHTML = '<div class="empty-state">No recurring expenses added yet</div>';
-        return;
-    }
-
-    const html = recurringExpenses.map(expense => {
-        const categoryInfo = getAllCategories().find(c => c.name === expense.category) || DEFAULT_CATEGORIES[7];
-        const nextDue = new Date(expense.startDate);
-        const now = new Date();
-        const daysUntil = Math.ceil((nextDue - now) / (1000 * 60 * 60 * 24));
-        
-        // Calculate next due date
-        let frequencyText = '';
-        let nextDueDate = new Date(nextDue);
-        
-        if (expense.frequency === 'monthly') {
-            nextDueDate.setMonth(nextDueDate.getMonth() + 1);
-            frequencyText = 'MONTHLY';
-        } else if (expense.frequency === 'weekly') {
-            nextDueDate.setDate(nextDueDate.getDate() + 7);
-            frequencyText = 'WEEKLY';
-        } else if (expense.frequency === 'yearly') {
-            nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
-            frequencyText = 'YEARLY';
-        }
-        
-        // Show "Deactivated" instead of due date if not active
-        const statusText = expense.isActive ? 
-            `Due in ${daysUntil > 0 ? daysUntil : 0} days` : 
-            'Deactivated';
-        
-        return `
-            <div class="recurring-card ${expense.isActive ? 'active' : 'inactive'}">
-                <div class="recurring-header">
-                    <h3>${expense.description}</h3>
-                    <span class="recurring-badge ${expense.frequency}">${frequencyText}</span>
-                </div>
-                <div class="recurring-content">
-                    <div class="recurring-amount">
-                        <span class="amount-label">Amount:</span>
-                        <span class="amount-value">${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(expense.amount)}</span>
-                    </div>
-                    <div class="recurring-details">
-                        <div class="detail-item">
-                            <i class="fas fa-calendar"></i>
-                            <span>${expense.isActive ? 'Next Due:' : 'Status:'} ${expense.isActive ? formatDate(nextDueDate.toISOString()) : 'Deactivated'}</span>
-                        </div>
-                        <div class="detail-item">
-                            <i class="fas fa-redo"></i>
-                            <span>Frequency: ${expense.frequency}</span>
-                        </div>
-                        <div class="detail-item">
-                            <i class="fas fa-tag"></i>
-                            <span>Category: ${expense.category}</span>
-                        </div>
-                    </div>
-                    <div class="due-status ${expense.isActive ? '' : 'text-danger'}">
-                        ${statusText}
-                    </div>
-                </div>
-                <div class="recurring-actions">
-                    <button class="btn-icon ${expense.isActive ? 'pause' : 'play'}" onclick="toggleRecurringExpense('${expense._id}')" title="${expense.isActive ? 'Deactivate' : 'Activate'}">
-                        <i class="fas fa-${expense.isActive ? 'pause' : 'play'}"></i>
-                    </button>
-                    <button class="btn-icon delete" onclick="deleteRecurringExpense('${expense._id}')" title="Delete">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    container.innerHTML = html;
-}
-
-async function toggleRecurringExpense(id) {
+/**
+ * Handle mark bill as paid
+ */
+async function handleMarkBillPaid(id) {
+    showLoading(true);
     try {
-        const data = await apiRequest(`/recurring/${id}/toggle`, {
-            method: 'PATCH'
-        });
-
-        if (data.success) {
-            const index = recurringExpenses.findIndex(e => e._id === id);
-            if (index !== -1) {
-                recurringExpenses[index] = data.recurringExpense;
-            }
-            showNotification(data.message, 'success');
-            updateRecurringExpensesDisplay();
+        const result = await BillService.markPaid(id);
+        if (result.success) {
+            showNotification('Bill marked as paid', 'success');
+            UIRenderer.renderBills();
         }
     } catch (error) {
-        showNotification('Failed to toggle recurring expense', 'error');
+        showNotification(error.message || 'Failed to mark bill as paid', 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
-async function deleteRecurringExpense(id) {
-    if (!confirm('Are you sure you want to delete this recurring expense?')) return;
-
+/**
+ * Handle delete bill
+ */
+async function handleDeleteBill(id) {
+    if (!confirm('Are you sure you want to delete this bill reminder?')) return;
+    
+    showLoading(true);
     try {
-        const data = await apiRequest(`/recurring/${id}`, {
-            method: 'DELETE'
-        });
-
-        if (data.success) {
-            recurringExpenses = recurringExpenses.filter(e => e._id !== id);
-            showNotification(data.message, 'success');
-            updateRecurringExpensesDisplay();
+        const result = await BillService.delete(id);
+        if (result.success) {
+            showNotification('Bill reminder deleted', 'success');
+            UIRenderer.renderBills();
         }
     } catch (error) {
-        showNotification('Failed to delete recurring expense', 'error');
+        showNotification(error.message || 'Failed to delete bill reminder', 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
-/* ======================
-   BILL REMINDERS
-====================== */
-function showAddBillModal() {
-    const modal = document.getElementById('addBillModal');
-    if (modal) modal.classList.remove('hidden');
-}
-
-function closeAddBillModal() {
-    const modal = document.getElementById('addBillModal');
-    if (modal) modal.classList.add('hidden');
-}
-
-async function addBillReminder() {
-    const billName = document.getElementById('billTitle').value.trim();
-    const amount = parseFloat(document.getElementById('billAmount').value);
-    const category = document.getElementById('billCategory').value;
-    const dueDate = document.getElementById('billDueDate').value;
-    const reminderDays = parseInt(document.getElementById('billReminderDays').value) || 3;
-
+/**
+ * Handle add bill reminder
+ */
+async function handleAddBill() {
+    const billName = document.getElementById('billTitle')?.value?.trim();
+    const amount = parseFloat(document.getElementById('billAmount')?.value);
+    const category = document.getElementById('billCategory')?.value;
+    const dueDate = document.getElementById('billDueDate')?.value;
+    const reminderDays = parseInt(document.getElementById('billReminderDays')?.value) || 3;
+    
     if (!billName || !amount || !category || !dueDate) {
         showNotification('Please fill in all required fields', 'error');
         return;
     }
-
+    
+    showLoading(true);
     try {
-        const billData = {
+        const result = await BillService.create({
             billName,
             amount,
             category,
             dueDate,
             reminderDays
-        };
-
-        const data = await apiRequest('/bills', {
-            method: 'POST',
-            body: JSON.stringify(billData)
         });
-
-        if (data.success) {
-            billReminders.push(data.bill);
-            
-            // Reset form
+        
+        if (result.success) {
+            showNotification('Bill reminder added', 'success');
             document.getElementById('billTitle').value = '';
             document.getElementById('billAmount').value = '';
             document.getElementById('billCategory').value = '';
             document.getElementById('billDueDate').value = '';
             
-            closeAddBillModal();
-            showNotification(data.message, 'success');
-            updateBillRemindersDisplay();
-            updateBillCalendar();
+            closeModal('addBillModal');
+            UIRenderer.renderBills();
         }
     } catch (error) {
-        console.error('Add bill error:', error);
         showNotification(error.message || 'Failed to add bill reminder', 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
-// Alias for HTML compatibility
-async function saveBillReminder() {
-    await addBillReminder();
-}
-
-function updateBillRemindersDisplay() {
-    const container = document.getElementById('remindersContainer');
-    if (!container) {
-        console.log('remindersContainer not found');
-        return;
-    }
-
-    if (billReminders.length === 0) {
-        container.innerHTML = '<div class="empty-state">No bill reminders added yet</div>';
-        return;
-    }
-
-    const sortedBills = [...billReminders].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
-    
-    const html = sortedBills.map(bill => {
-        const categoryInfo = getAllCategories().find(c => c.name === bill.category) || DEFAULT_CATEGORIES[7];
-        const dueDate = new Date(bill.dueDate);
-        const now = new Date();
-        const daysUntil = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
-        const isOverdue = daysUntil < 0;
-        const isDueSoon = daysUntil <= bill.reminderDays && daysUntil >= 0;
-
-        return `
-            <div class="bill-reminder-card ${bill.isPaid ? 'paid' : isOverdue ? 'overdue' : isDueSoon ? 'upcoming' : ''}">
-                <div class="bill-header">
-                    <div class="bill-title">
-                        <h4>${bill.billName}</h4>
-                        <span class="bill-status ${bill.isPaid ? 'paid' : isOverdue ? 'overdue' : isDueSoon ? 'upcoming' : ''}">
-                            ${bill.isPaid ? 'Paid' : isOverdue ? 'Overdue' : isDueSoon ? 'Upcoming' : 'Pending'}
-                        </span>
-                    </div>
-                    <div class="bill-amount">
-                        ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(bill.amount)}
-                    </div>
-                </div>
-                <div class="bill-details">
-                    <div class="detail-row">
-                        <span class="label">Due:</span>
-                        <span class="value">${formatDate(bill.dueDate)}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="label">Status:</span>
-                        <span class="value ${bill.isPaid ? 'text-success' : isOverdue ? 'text-danger' : 'text-warning'}">
-                            ${bill.isPaid ? 'Paid' : isOverdue ? 'Overdue' : `Due in ${daysUntil} days`}
-                        </span>
-                    </div>
-                </div>
-                <div class="bill-actions">
-                    ${!bill.isPaid ? `
-                        <button class="btn-success btn-sm" onclick="markBillAsPaid('${bill._id}')">
-                            <i class="fas fa-check"></i> Mark Paid
-                        </button>
-                    ` : ''}
-                    <button class="btn-icon delete" onclick="deleteBillReminder('${bill._id}')" title="Delete">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    container.innerHTML = html;
-    updateBillCalendar();
-}
-
-async function markBillAsPaid(id) {
+/**
+ * Handle toggle split member payment
+ */
+async function handleToggleSplitMember(id, memberIndex) {
+    showLoading(true);
     try {
-        const data = await apiRequest(`/bills/${id}/pay`, {
-            method: 'PATCH'
-        });
-
-        if (data.success) {
-            const index = billReminders.findIndex(b => b._id === id);
-            if (index !== -1) {
-                billReminders[index] = data.bill;
-            }
-            showNotification(data.message, 'success');
-            updateBillRemindersDisplay();
-            updateBillCalendar();
+        const result = await SplitService.toggleMemberPayment(id, memberIndex);
+        if (result.success) {
+            UIRenderer.renderSplitExpenses();
         }
     } catch (error) {
-        showNotification('Failed to mark bill as paid', 'error');
+        showNotification(error.message || 'Failed to update member payment', 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
-async function deleteBillReminder(id) {
-    if (!confirm('Are you sure you want to delete this bill reminder?')) return;
-
+/**
+ * Handle settle split expense
+ */
+async function handleSettleSplit(id) {
+    if (!confirm('Mark all members as paid for this split expense?')) return;
+    
+    showLoading(true);
     try {
-        const data = await apiRequest(`/bills/${id}`, {
-            method: 'DELETE'
-        });
-
-        if (data.success) {
-            billReminders = billReminders.filter(b => b._id !== id);
-            showNotification(data.message, 'success');
-            updateBillRemindersDisplay();
-            updateBillCalendar();
+        const result = await SplitService.settle(id);
+        if (result.success) {
+            showNotification('Split expense settled', 'success');
+            UIRenderer.renderSplitExpenses();
         }
     } catch (error) {
-        showNotification('Failed to delete bill reminder', 'error');
+        showNotification(error.message || 'Failed to settle split expense', 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
-function updateBillCalendar() {
-    const container = document.getElementById('billCalendar');
-    if (!container) return;
-
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+/**
+ * Handle unsettle split expense
+ */
+async function handleUnsettleSplit(id) {
+    if (!confirm('Reset all members to unpaid for this split expense?')) return;
     
-    // Get first day of month
-    const firstDay = new Date(currentYear, currentMonth, 1);
-    const lastDay = new Date(currentYear, currentMonth + 1, 0);
-    
-    // Get days in month
-    const daysInMonth = lastDay.getDate();
-    
-    // Get day of week for first day (0 = Sunday, 6 = Saturday)
-    const firstDayIndex = firstDay.getDay();
-    
-    // Get month name
-    const monthName = firstDay.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    
-    // Update the calendar section title
-    const calendarTitle = document.querySelector('.calendar-section h3');
-    if (calendarTitle) {
-        calendarTitle.textContent = `Bill Calendar - ${monthName}`;
-    }
-    
-    let html = '';
-    
-    // Add day headers
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    dayNames.forEach(day => {
-        html += `<div class="calendar-day-header">${day}</div>`;
-    });
-    
-    // Add empty cells for days before first day of month
-    for (let i = 0; i < firstDayIndex; i++) {
-        html += '<div class="calendar-day empty"></div>';
-    }
-    
-    // Add days of month
-    for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const dateObj = new Date(currentYear, currentMonth, day);
-        
-        // Check if any bills are due on this day
-        const billsOnDay = billReminders.filter(bill => {
-            const billDate = new Date(bill.dueDate);
-            return !bill.isPaid && 
-                   billDate.getDate() === day && 
-                   billDate.getMonth() === currentMonth && 
-                   billDate.getFullYear() === currentYear;
-        });
-        
-        const isToday = day === now.getDate() && currentMonth === now.getMonth() && currentYear === now.getFullYear();
-        const hasBill = billsOnDay.length > 0;
-        
-        // Create tooltip for bills on this day
-        let tooltip = '';
-        if (hasBill) {
-            const billNames = billsOnDay.map(bill => bill.billName).join(', ');
-            tooltip = `title="${billNames}"`;
+    showLoading(true);
+    try {
+        const result = await SplitService.unsettle(id);
+        if (result.success) {
+            showNotification('Split expense unsettled', 'success');
+            UIRenderer.renderSplitExpenses();
         }
-        
-        let dayClass = 'calendar-day';
-        if (isToday) dayClass += ' today';
-        if (hasBill) dayClass += ' has-bill';
-        
-        html += `
-            <div class="${dayClass}" ${tooltip}>
-                ${day}
-                ${hasBill ? '<span class="bill-indicator"></span>' : ''}
-            </div>
-        `;
+    } catch (error) {
+        showNotification(error.message || 'Failed to unsettle split expense', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+/**
+ * Handle delete split expense
+ */
+async function handleDeleteSplit(id) {
+    if (!confirm('Are you sure you want to delete this split expense?')) return;
+    
+    showLoading(true);
+    try {
+        const result = await SplitService.delete(id);
+        if (result.success) {
+            showNotification('Split expense deleted', 'success');
+            UIRenderer.renderSplitExpenses();
+        }
+    } catch (error) {
+        showNotification(error.message || 'Failed to delete split expense', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+/**
+ * Handle edit split expense
+ */
+function handleEditSplitExpense(id) {
+    const expense = AppState.splitExpenses.find(s => s._id === id);
+    if (!expense) {
+        showNotification('Split expense not found', 'error');
+        return;
     }
     
-    container.innerHTML = html;
+    AppState.editingSplitExpenseId = id;
     
-    // Add click handler to bill days
-    const billDays = container.querySelectorAll('.calendar-day.has-bill');
-    billDays.forEach(day => {
-        day.addEventListener('click', function() {
-            const dayNumber = parseInt(this.textContent);
-            const billsOnDay = billReminders.filter(bill => {
-                const billDate = new Date(bill.dueDate);
-                return !bill.isPaid && 
-                       billDate.getDate() === dayNumber && 
-                       billDate.getMonth() === currentMonth && 
-                       billDate.getFullYear() === currentYear;
+    document.getElementById('splitTitle').value = expense.title;
+    document.getElementById('splitTotalAmount').value = expense.totalAmount;
+    document.getElementById('splitCategory').value = expense.category;
+    document.getElementById('numPeople').value = expense.members.length;
+    document.getElementById('splitMethod').value = expense.splitMethod;
+    
+    showSplitExpenseModal();
+    
+    setTimeout(() => {
+        updateSplitCalculation();
+        
+        if (expense.splitMethod === 'percentage') {
+            expense.members.forEach((member, index) => {
+                const percentage = (member.amount / expense.totalAmount) * 100;
+                const inputs = document.querySelectorAll('.percentage-input');
+                if (inputs[index]) {
+                    inputs[index].value = percentage.toFixed(2);
+                }
             });
-            
-            if (billsOnDay.length > 0) {
-                const billList = billsOnDay.map(bill => 
-                    `• ${bill.billName}: ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(bill.amount)}`
-                ).join('\n');
-                
-                alert(`Bills due on ${dayNumber}/${currentMonth + 1}/${currentYear}:\n\n${billList}`);
-            }
-        });
-    });
-}
-
-/* ======================
-   SPLIT EXPENSES
-====================== */
-function showSplitExpenseModal() {
-    const modal = document.getElementById('splitExpenseModal');
-    if (modal) modal.classList.remove('hidden');
-    // Initialize split calculation
-    updateSplitCalculation();
-}
-
-function closeSplitExpenseModal() {
-    const modal = document.getElementById('splitExpenseModal');
-    if (modal) modal.classList.add('hidden');
+            updatePercentageSplit();
+        } else if (expense.splitMethod === 'custom') {
+            expense.members.forEach((member, index) => {
+                const inputs = document.querySelectorAll('.custom-amount-input');
+                if (inputs[index]) {
+                    inputs[index].value = member.amount.toFixed(2);
+                }
+            });
+            updateCustomSplit();
+        }
+    }, 100);
     
-    // Reset editing state
-    editingSplitExpenseId = null;
-    
-    // Reset form
-    document.getElementById('splitTitle').value = '';
-    document.getElementById('splitTotalAmount').value = '';
-    document.getElementById('splitCategory').value = '';
-    document.getElementById('numPeople').value = '1';
-    document.getElementById('splitMethod').value = 'equal';
-    
-    // Reset button text
     const saveButton = document.querySelector('#splitExpenseModal .btn-primary');
     if (saveButton) {
-        saveButton.innerHTML = '<i class="fas fa-save"></i> Save Split Expense';
+        saveButton.innerHTML = '<i class="fas fa-save"></i> Update Split Expense';
     }
 }
 
-function updateSplitCalculation() {
-    const totalAmount = parseFloat(document.getElementById('splitTotalAmount').value) || 0;
-    const numPeople = parseInt(document.getElementById('numPeople').value) || 1;
-    const splitMethod = document.getElementById('splitMethod').value;
+/**
+ * Handle save split expense
+ */
+async function handleSaveSplit() {
+    const title = document.getElementById('splitTitle')?.value?.trim();
+    const totalAmount = parseFloat(document.getElementById('splitTotalAmount')?.value);
+    const category = document.getElementById('splitCategory')?.value;
+    const numPeople = parseInt(document.getElementById('numPeople')?.value) || 1;
+    const splitMethod = document.getElementById('splitMethod')?.value;
     
-    const container = document.getElementById('splitMembersContainer');
-    let html = '';
-    let summary = '';
-    
-    if (splitMethod === 'equal') {
-        const perPerson = totalAmount / numPeople;
-        
-        for (let i = 0; i < numPeople; i++) {
-            const isYou = i === 0;
-            html += `
-                <div class="split-member-row">
-                    <div class="member-name">
-                        ${isYou ? 'You (You)' : `Person ${i + 1}`}
-                    </div>
-                    <div class="member-amount">
-                        ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(perPerson)}
-                    </div>
-                </div>
-            `;
-        }
-        
-        summary = `
-            <div class="summary-total">
-                <span>Total:</span>
-                <span>${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(totalAmount)}</span>
-            </div>
-            <div class="summary-per-person">
-                <span>Each person pays:</span>
-                <span>${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(perPerson)}</span>
-            </div>
-        `;
-    } else if (splitMethod === 'percentage') {
-        const defaultPercentage = 100 / numPeople;
-        
-        for (let i = 0; i < numPeople; i++) {
-            const isYou = i === 0;
-            const amount = (totalAmount * defaultPercentage) / 100;
-            html += `
-                <div class="split-member-row">
-                    <div class="member-name">
-                        ${isYou ? 'You (You)' : `Person ${i + 1}`}
-                    </div>
-                    <div class="member-input-group">
-                        <input type="number" class="percentage-input" value="${defaultPercentage.toFixed(2)}" min="0" max="100" oninput="updatePercentageSplit()" /> %
-                    </div>
-                    <div class="member-amount">
-                        ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(amount)}
-                    </div>
-                </div>
-            `;
-        }
-        
-        summary = `
-            <div class="summary-total">
-                <span>Total:</span>
-                <span>${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(totalAmount)}</span>
-            </div>
-        `;
-    } else if (splitMethod === 'custom') {
-        const defaultAmount = totalAmount / numPeople;
-        
-        for (let i = 0; i < numPeople; i++) {
-            const isYou = i === 0;
-            html += `
-                <div class="split-member-row">
-                    <div class="member-name">
-                        ${isYou ? 'You (You)' : `Person ${i + 1}`}
-                    </div>
-                    <div class="member-input-group">
-                        <input type="number" class="custom-amount-input" value="${defaultAmount.toFixed(2)}" min="0" oninput="updateCustomSplit()" />
-                    </div>
-                </div>
-            `;
-        }
-        
-        summary = `
-            <div class="summary-total">
-                <span>Total:</span>
-                <span>${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(totalAmount)}</span>
-            </div>
-        `;
-    }
-    
-    container.innerHTML = html;
-    
-    const summaryContainer = document.getElementById('splitSummary');
-    if (summaryContainer) {
-        summaryContainer.innerHTML = summary;
-    }
-    
-    // Update calculations
-    if (splitMethod === 'percentage') {
-        updatePercentageSplit();
-    } else if (splitMethod === 'custom') {
-        updateCustomSplit();
-    }
-}
-
-function updatePercentageSplit() {
-    const totalAmount = parseFloat(document.getElementById('splitTotalAmount').value) || 0;
-    const percentageInputs = document.querySelectorAll('.percentage-input');
-    
-    let totalPercentage = 0;
-    percentageInputs.forEach(input => {
-        totalPercentage += parseFloat(input.value) || 0;
-    });
-    
-    // Update amounts
-    percentageInputs.forEach(input => {
-        const percentage = parseFloat(input.value) || 0;
-        const amount = (totalAmount * percentage) / 100;
-        const row = input.closest('.split-member-row');
-        const amountElement = row.querySelector('.member-amount');
-        if (amountElement) {
-            amountElement.textContent = `${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(amount)}`;
-        }
-    });
-    
-    // Update summary
-    const summaryContainer = document.getElementById('splitSummary');
-    if (summaryContainer) {
-        summaryContainer.innerHTML = `
-            <div class="summary-total">
-                <span>Total:</span>
-                <span>${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(totalAmount)}</span>
-            </div>
-            <div class="summary-percentage">
-                <span>Total Percentage:</span>
-                <span class="${Math.abs(totalPercentage - 100) > 0.01 ? 'text-danger' : 'text-success'}">
-                    ${totalPercentage.toFixed(2)}%
-                </span>
-            </div>
-        `;
-    }
-}
-
-function updateCustomSplit() {
-    const totalAmount = parseFloat(document.getElementById('splitTotalAmount').value) || 0;
-    const customInputs = document.querySelectorAll('.custom-amount-input');
-    
-    let totalEntered = 0;
-    customInputs.forEach(input => {
-        totalEntered += parseFloat(input.value) || 0;
-    });
-    
-    // Update summary
-    const summaryContainer = document.getElementById('splitSummary');
-    if (summaryContainer) {
-        const difference = totalAmount - totalEntered;
-        summaryContainer.innerHTML = `
-            <div class="summary-total">
-                <span>Total:</span>
-                <span>${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(totalAmount)}</span>
-            </div>
-            <div class="summary-entered">
-                <span>Entered Total:</span>
-                <span>${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(totalEntered)}</span>
-            </div>
-            <div class="summary-difference ${Math.abs(difference) > 0.01 ? 'text-danger' : 'text-success'}">
-                <span>Difference:</span>
-                <span>${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(difference)}</span>
-            </div>
-        `;
-    }
-}
-
-async function saveSplitExpense() {
-    const title = document.getElementById('splitTitle').value.trim();
-    const totalAmount = parseFloat(document.getElementById('splitTotalAmount').value);
-    const category = document.getElementById('splitCategory').value;
-    const numPeople = parseInt(document.getElementById('numPeople').value) || 1;
-    const splitMethod = document.getElementById('splitMethod').value;
-
     if (!title || !totalAmount || !category) {
         showNotification('Please fill in all required fields', 'error');
         return;
     }
-
-    // Calculate amounts based on split method
+    
     const members = [];
     
     if (splitMethod === 'equal') {
@@ -2218,14 +2437,14 @@ async function saveSplitExpense() {
             members.push({
                 name: i === 0 ? 'You' : `Person ${i + 1}`,
                 amount: perPerson,
-                isPaid: i === 0 // You are marked as paid by default
+                isPaid: i === 0
             });
         }
     } else if (splitMethod === 'percentage') {
-        const percentageInputs = document.querySelectorAll('.percentage-input');
+        const inputs = document.querySelectorAll('.percentage-input');
         let totalPercentage = 0;
         
-        percentageInputs.forEach((input, index) => {
+        inputs.forEach((input, index) => {
             const percentage = parseFloat(input.value) || 0;
             totalPercentage += percentage;
             const amount = (totalAmount * percentage) / 100;
@@ -2241,10 +2460,10 @@ async function saveSplitExpense() {
             return;
         }
     } else if (splitMethod === 'custom') {
-        const customInputs = document.querySelectorAll('.custom-amount-input');
+        const inputs = document.querySelectorAll('.custom-amount-input');
         let totalEntered = 0;
         
-        customInputs.forEach((input, index) => {
+        inputs.forEach((input, index) => {
             const amount = parseFloat(input.value) || 0;
             totalEntered += amount;
             members.push({
@@ -2259,1725 +2478,1408 @@ async function saveSplitExpense() {
             return;
         }
     }
-
+    
     if (members.length === 0) {
         showNotification('Please configure split correctly', 'error');
         return;
     }
-
+    
+    showLoading(true);
     try {
-        const splitData = {
-            title,
-            totalAmount,
-            category,
-            splitMethod,
-            members
-        };
-
-        let data;
+        const data = { title, totalAmount, category, splitMethod, members };
+        let result;
         
-        // Check if we're updating or creating
-        if (editingSplitExpenseId) {
-            // Update existing split expense
-            data = await apiRequest(`/split/${editingSplitExpenseId}`, {
-                method: 'PUT',
-                body: JSON.stringify(splitData)
-            });
-
-            if (data.success) {
-                const index = splitExpenses.findIndex(e => e._id === editingSplitExpenseId);
-                if (index !== -1) {
-                    splitExpenses[index] = data.splitExpense;
+        if (AppState.editingSplitExpenseId) {
+            result = await SplitService.update(AppState.editingSplitExpenseId, data);
+            if (result.success) {
+                showNotification('Split expense updated', 'success');
+                AppState.editingSplitExpenseId = null;
+                const saveButton = document.querySelector('#splitExpenseModal .btn-primary');
+                if (saveButton) {
+                    saveButton.innerHTML = '<i class="fas fa-save"></i> Save Split Expense';
                 }
-                showNotification('Split expense updated successfully', 'success');
             }
         } else {
-            // Create new split expense
-            data = await apiRequest('/split', {
-                method: 'POST',
-                body: JSON.stringify(splitData)
-            });
-
-            if (data.success) {
-                splitExpenses.push(data.splitExpense);
-                showNotification('Split expense added successfully', 'success');
+            result = await SplitService.create(data);
+            if (result.success) {
+                showNotification('Split expense added', 'success');
             }
         }
-
-        if (data.success) {
-            // Reset form
+        
+        if (result.success) {
             document.getElementById('splitTitle').value = '';
             document.getElementById('splitTotalAmount').value = '';
             document.getElementById('splitCategory').value = '';
             document.getElementById('numPeople').value = '1';
             document.getElementById('splitMethod').value = 'equal';
             
-            // Reset editing state
-            editingSplitExpenseId = null;
-            
-            // Reset button text
-            const saveButton = document.querySelector('#splitExpenseModal .btn-primary');
-            if (saveButton) {
-                saveButton.innerHTML = '<i class="fas fa-save"></i> Save Split Expense';
-            }
-            
-            closeSplitExpenseModal();
-            updateSplitExpensesDisplay();
+            closeModal('splitExpenseModal');
+            UIRenderer.renderSplitExpenses();
         }
     } catch (error) {
-        console.error('Save split expense error:', error);
         showNotification(error.message || 'Failed to save split expense', 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
-function editSplitExpense(id) {
-    const expense = splitExpenses.find(e => e._id === id);
-    if (!expense) return;
+// ===================================================================
+// 15. CATEGORY HANDLERS
+// ===================================================================
 
-    // Store the expense ID we're editing
-    editingSplitExpenseId = id;
+/**
+ * Handle add category
+ */
+async function handleAddCategory() {
+    const name = document.getElementById('newCategoryName')?.value?.trim();
+    const icon = document.getElementById('newCategoryIcon')?.value || '📝';
+    const color = document.getElementById('newCategoryColor')?.value || '#6C757D';
     
-    // Fill the split expense modal with existing data
-    document.getElementById('splitTitle').value = expense.title;
-    document.getElementById('splitTotalAmount').value = expense.totalAmount;
-    document.getElementById('splitCategory').value = expense.category;
-    document.getElementById('numPeople').value = expense.members.length;
-    document.getElementById('splitMethod').value = expense.splitMethod;
+    if (!name) {
+        showNotification('Please enter a category name', 'error');
+        return;
+    }
     
-    // Show the modal
-    showSplitExpenseModal();
-    
-    // Update the form to show existing members
-    setTimeout(() => {
-        updateSplitCalculation();
-        
-        // Pre-fill member amounts based on split method
-        if (expense.splitMethod === 'equal') {
-            // Already handled by updateSplitCalculation
-        } else if (expense.splitMethod === 'percentage') {
-            expense.members.forEach((member, index) => {
-                const percentage = (member.amount / expense.totalAmount) * 100;
-                const input = document.querySelectorAll('.percentage-input')[index];
-                if (input) {
-                    input.value = percentage.toFixed(2);
-                }
-            });
-            updatePercentageSplit();
-        } else if (expense.splitMethod === 'custom') {
-            expense.members.forEach((member, index) => {
-                const input = document.querySelectorAll('.custom-amount-input')[index];
-                if (input) {
-                    input.value = member.amount.toFixed(2);
-                }
-            });
-            updateCustomSplit();
+    showLoading(true);
+    try {
+        let result;
+        if (AppState.editingCategoryId) {
+            result = await CategoryService.update(AppState.editingCategoryId, { name, icon, color });
+            if (result.success) {
+                showNotification('Category updated', 'success');
+                AppState.editingCategoryId = null;
+            }
+        } else {
+            result = await CategoryService.create({ name, icon, color });
+            if (result.success) {
+                showNotification('Category added', 'success');
+            }
         }
-    }, 100);
-    
-    // Update button text to indicate editing
-    const saveButton = document.querySelector('#splitExpenseModal .btn-primary');
-    if (saveButton) {
-        saveButton.innerHTML = '<i class="fas fa-save"></i> Update Split Expense';
+        
+        if (result.success) {
+            closeModal('addCategoryModal');
+            await refreshAllData();
+            populateCategoryDropdowns();
+            updateCategoryManagement();
+        }
+    } catch (error) {
+        showNotification(error.message || 'Failed to save category', 'error');
+    } finally {
+        showLoading(false);
     }
-    
-    showNotification('Edit split expense details', 'info');
 }
 
-function updateSplitExpensesDisplay() {
-    const container = document.getElementById('splitContainer');
-    if (!container) {
-        console.log('splitContainer not found');
+/**
+ * Handle edit category
+ */
+function handleEditCategory(id) {
+    const category = AppState.categories.find(c => c._id === id);
+    if (!category) {
+        showNotification('Category not found', 'error');
         return;
     }
+    
+    AppState.editingCategoryId = id;
+    document.getElementById('newCategoryName').value = category.name;
+    document.getElementById('newCategoryIcon').value = category.icon || '📝';
+    document.getElementById('newCategoryColor').value = category.color || '#6C757D';
+    
+    showModal('addCategoryModal');
+    const title = document.querySelector('#addCategoryModal .modal-header h3');
+    if (title) {
+        title.innerHTML = '<i class="fas fa-edit"></i> Edit Category';
+    }
+}
 
-    if (splitExpenses.length === 0) {
-        container.innerHTML = '<div class="empty-state">No split expenses added yet</div>';
+/**
+ * Handle delete category
+ */
+async function handleDeleteCategory(id) {
+    if (!confirm('Are you sure you want to delete this category?')) return;
+    
+    showLoading(true);
+    try {
+        const result = await CategoryService.delete(id);
+        if (result.success) {
+            showNotification('Category deleted', 'success');
+            await refreshAllData();
+            populateCategoryDropdowns();
+            updateCategoryManagement();
+        }
+    } catch (error) {
+        showNotification(error.message || 'Failed to delete category', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+/**
+ * Populate category dropdowns
+ */
+function populateCategoryDropdowns() {
+    const dropdowns = ['category', 'recurringCategory', 'billCategory', 'splitCategory'];
+    const allCategories = CategoryService.getAllCategories();
+    
+    dropdowns.forEach(id => {
+        const dropdown = document.getElementById(id);
+        if (!dropdown) return;
+        
+        const currentValue = dropdown.value;
+        
+        dropdown.innerHTML = `
+            <option value="">Select Category</option>
+            ${allCategories.map(cat => 
+                `<option value="${cat.name}">${cat.icon || '📝'} ${cat.name}</option>`
+            ).join('')}
+            <option value="__add_new__" class="add-category-option">➕ Add New Category</option>
+        `;
+        
+        if (currentValue && currentValue !== '__add_new__') {
+            dropdown.value = currentValue;
+        }
+    });
+}
+
+/**
+ * Update category management display
+ */
+function updateCategoryManagement() {
+    const container = document.getElementById('customCategoriesList');
+    if (!container) return;
+    
+    if (AppState.categories.length === 0) {
+        container.innerHTML = '<div class="empty-state">No custom categories yet</div>';
         return;
     }
-
-    const html = splitExpenses.map(expense => {
-        const categoryInfo = getAllCategories().find(c => c.name === expense.category) || DEFAULT_CATEGORIES[7];
-        const paidMembers = expense.members.filter(m => m.isPaid).length;
-        const totalMembers = expense.members.length;
-        const isSettled = paidMembers === totalMembers;
-
+    
+    container.innerHTML = AppState.categories.map(category => {
+        const count = AppState.expenses.filter(e => e.category === category.name).length;
         return `
-            <div class="split-card">
-                <div class="split-header">
-                    <div>
-                        <h3>${expense.title}</h3>
-                        <p class="split-subtitle">Split among ${totalMembers} people • Total: ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(expense.totalAmount)}</p>
-                    </div>
-                    <span class="split-status ${isSettled ? 'settled' : 'pending'}">
-                        ${isSettled ? 'Settled' : 'Pending'}
-                    </span>
+            <div class="category-item">
+                <span class="category-icon" style="color: ${category.color || '#6C757D'}">
+                    ${category.icon || '📝'}
+                </span>
+                <div class="category-info">
+                    <div class="category-name">${category.name}</div>
+                    <div class="category-count">${count} expense${count !== 1 ? 's' : ''}</div>
                 </div>
-                
-                <div class="split-details">
-                    <div class="split-members-list">
-                        ${expense.members.map((member, index) => `
-                            <div class="split-member-detail">
-                                <div class="member-info">
-                                    <span class="member-name">${member.name}</span>
-                                    <span class="member-status ${member.isPaid ? 'paid' : 'unpaid'}">
-                                        ${member.isPaid ? 'Paid' : 'Unpaid'}
-                                    </span>
-                                </div>
-                                <div class="member-actions">
-                                    <span class="member-amount">${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(member.amount)}</span>
-                                    <button class="${member.isPaid ? 'btn-mark-unpaid' : 'btn-mark-paid'}" 
-                                            onclick="toggleMemberPayment('${expense._id}', ${index})">
-                                        <i class="fas fa-${member.isPaid ? 'times' : 'check'}"></i>
-                                        ${member.isPaid ? 'Mark Unpaid' : 'Mark Paid'}
-                                    </button>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-                
-                <div class="split-actions">
-                    <button class="btn-secondary" onclick="editSplitExpense('${expense._id}')">
-                        <i class="fas fa-edit"></i> Edit
+                <div class="category-actions">
+                    <button class="btn-icon edit" onclick="handleEditCategory('${category._id}')" title="Edit">
+                        <i class="fas fa-edit"></i>
                     </button>
-                    ${isSettled ? `
-                        <button class="btn-unsettle" onclick="unsettleSplitExpense('${expense._id}')">
-                            <i class="fas fa-undo"></i> Unsettle
-                        </button>
-                    ` : `
-                        <button class="btn-success" onclick="settleSplitExpense('${expense._id}')">
-                            <i class="fas fa-check"></i> Settle Up
-                        </button>
-                    `}
-                    <button class="btn-danger" onclick="deleteSplitExpense('${expense._id}')">
-                        <i class="fas fa-trash"></i> Delete
+                    <button class="btn-icon delete" onclick="handleDeleteCategory('${category._id}')" title="Delete">
+                        <i class="fas fa-trash"></i>
                     </button>
                 </div>
             </div>
         `;
     }).join('');
+}
 
+/**
+ * Update default categories display
+ */
+function updateDefaultCategoriesDisplay() {
+    const container = document.getElementById('defaultCategoriesList');
+    if (!container) return;
+    
+    container.innerHTML = CONFIG.DEFAULT_CATEGORIES.map(category => {
+        const count = AppState.expenses.filter(e => e.category === category.name).length;
+        return `
+            <div class="category-item">
+                <span class="category-icon" style="color: ${category.color}">${category.icon}</span>
+                <div class="category-info">
+                    <div class="category-name">${category.name}</div>
+                    <div class="category-count">${count} expense${count !== 1 ? 's' : ''}</div>
+                </div>
+                <span class="category-badge">Default</span>
+            </div>
+        `;
+    }).join('');
+}
+
+// ===================================================================
+// 16. SPLIT FORM CALCULATIONS
+// ===================================================================
+
+/**
+ * Update split calculation
+ */
+function updateSplitCalculation() {
+    const totalAmount = parseFloat(document.getElementById('splitTotalAmount')?.value) || 0;
+    const numPeople = parseInt(document.getElementById('numPeople')?.value) || 1;
+    const splitMethod = document.getElementById('splitMethod')?.value;
+    
+    const container = document.getElementById('splitMembersContainer');
+    if (!container) return;
+    
+    let html = '';
+    
+    if (splitMethod === 'equal') {
+        const perPerson = totalAmount / numPeople;
+        for (let i = 0; i < numPeople; i++) {
+            html += `
+                <div class="split-member-row">
+                    <span class="member-name">${i === 0 ? 'You (You)' : `Person ${i + 1}`}</span>
+                    <span class="member-amount">${getCurrencySymbol()}${formatCurrency(perPerson)}</span>
+                </div>
+            `;
+        }
+    } else if (splitMethod === 'percentage') {
+        const defaultPercentage = 100 / numPeople;
+        for (let i = 0; i < numPeople; i++) {
+            const amount = (totalAmount * defaultPercentage) / 100;
+            html += `
+                <div class="split-member-row">
+                    <span class="member-name">${i === 0 ? 'You (You)' : `Person ${i + 1}`}</span>
+                    <div class="member-input-group">
+                        <input type="number" class="percentage-input" value="${defaultPercentage.toFixed(2)}" 
+                               min="0" max="100" step="0.01" oninput="updatePercentageSplit()" />
+                        <span class="percentage-symbol">%</span>
+                    </div>
+                    <span class="member-amount">${getCurrencySymbol()}${formatCurrency(amount)}</span>
+                </div>
+            `;
+        }
+    } else if (splitMethod === 'custom') {
+        const defaultAmount = totalAmount / numPeople;
+        for (let i = 0; i < numPeople; i++) {
+            html += `
+                <div class="split-member-row">
+                    <span class="member-name">${i === 0 ? 'You (You)' : `Person ${i + 1}`}</span>
+                    <div class="member-input-group">
+                        <input type="number" class="custom-amount-input" value="${defaultAmount.toFixed(2)}" 
+                               min="0" step="0.01" oninput="updateCustomSplit()" />
+                    </div>
+                </div>
+            `;
+        }
+    }
+    
+    container.innerHTML = html;
+    
+    // Update summary
+    updateSplitSummary(totalAmount, splitMethod);
+}
+
+/**
+ * Update split summary
+ */
+function updateSplitSummary(totalAmount, splitMethod) {
+    const container = document.getElementById('splitSummary');
+    if (!container) return;
+    
+    let html = `
+        <div class="summary-total">
+            <span>Total:</span>
+            <span>${getCurrencySymbol()}${formatCurrency(totalAmount)}</span>
+        </div>
+    `;
+    
+    if (splitMethod === 'equal') {
+        const numPeople = parseInt(document.getElementById('numPeople')?.value) || 1;
+        const perPerson = totalAmount / numPeople;
+        html += `
+            <div class="summary-per-person">
+                <span>Each person pays:</span>
+                <span>${getCurrencySymbol()}${formatCurrency(perPerson)}</span>
+            </div>
+        `;
+    } else if (splitMethod === 'percentage') {
+        const inputs = document.querySelectorAll('.percentage-input');
+        let totalPercentage = 0;
+        inputs.forEach(input => {
+            totalPercentage += parseFloat(input.value) || 0;
+        });
+        html += `
+            <div class="summary-percentage">
+                <span>Total Percentage:</span>
+                <span class="${Math.abs(totalPercentage - 100) > 0.01 ? 'text-danger' : 'text-success'}">
+                    ${totalPercentage.toFixed(2)}%
+                </span>
+            </div>
+        `;
+    } else if (splitMethod === 'custom') {
+        const inputs = document.querySelectorAll('.custom-amount-input');
+        let totalEntered = 0;
+        inputs.forEach(input => {
+            totalEntered += parseFloat(input.value) || 0;
+        });
+        const difference = totalAmount - totalEntered;
+        html += `
+            <div class="summary-entered">
+                <span>Entered Total:</span>
+                <span>${getCurrencySymbol()}${formatCurrency(totalEntered)}</span>
+            </div>
+            <div class="summary-difference ${Math.abs(difference) > 0.01 ? 'text-danger' : 'text-success'}">
+                <span>Difference:</span>
+                <span>${getCurrencySymbol()}${formatCurrency(difference)}</span>
+            </div>
+        `;
+    }
+    
     container.innerHTML = html;
 }
 
-async function toggleMemberPayment(expenseId, memberIndex) {
-    try {
-        const data = await apiRequest(`/split/${expenseId}/member/${memberIndex}/pay`, {
-            method: 'PATCH'
-        });
-
-        if (data.success) {
-            const index = splitExpenses.findIndex(e => e._id === expenseId);
-            if (index !== -1) {
-                splitExpenses[index] = data.splitExpense;
-            }
-            showNotification(data.message, 'success');
-            updateSplitExpensesDisplay();
-        }
-    } catch (error) {
-        showNotification('Failed to update member payment status', 'error');
-    }
-}
-
-async function settleSplitExpense(id) {
-    if (!confirm('Mark all members as paid for this split expense?')) return;
-
-    try {
-        const data = await apiRequest(`/split/${id}/settle`, {
-            method: 'PATCH'
-        });
-
-        if (data.success) {
-            const index = splitExpenses.findIndex(e => e._id === id);
-            if (index !== -1) {
-                splitExpenses[index] = data.splitExpense;
-            }
-            showNotification(data.message, 'success');
-            updateSplitExpensesDisplay();
-        }
-    } catch (error) {
-        console.error('Settle error:', error);
-        showNotification('Failed to settle expense', 'error');
-    }
-}
-
-async function unsettleSplitExpense(id) {
-    if (!confirm('Reset all members to unpaid for this split expense?')) return;
-
-    try {
-        const data = await apiRequest(`/split/${id}/unsettle`, {
-            method: 'PATCH'
-        });
-
-        if (data.success) {
-            const index = splitExpenses.findIndex(e => e._id === id);
-            if (index !== -1) {
-                splitExpenses[index] = data.splitExpense;
-            }
-            showNotification(data.message, 'success');
-            updateSplitExpensesDisplay();
-        }
-    } catch (error) {
-        console.error('Unsettle error:', error);
-        showNotification('Failed to unsettle expense', 'error');
-    }
-}
-
-async function deleteSplitExpense(id) {
-    if (!confirm('Are you sure you want to delete this split expense?')) return;
+/**
+ * Update percentage split
+ */
+function updatePercentageSplit() {
+    const totalAmount = parseFloat(document.getElementById('splitTotalAmount')?.value) || 0;
+    const inputs = document.querySelectorAll('.percentage-input');
     
-    try {
-        const data = await apiRequest(`/split/${id}`, {
-            method: 'DELETE'
-        });
+    let totalPercentage = 0;
+    inputs.forEach(input => {
+        totalPercentage += parseFloat(input.value) || 0;
+    });
+    
+    inputs.forEach((input, index) => {
+        const percentage = parseFloat(input.value) || 0;
+        const amount = (totalAmount * percentage) / 100;
+        const row = input.closest('.split-member-row');
+        const amountElement = row?.querySelector('.member-amount');
+        if (amountElement) {
+            amountElement.textContent = `${getCurrencySymbol()}${formatCurrency(amount)}`;
+        }
+    });
+    
+    updateSplitSummary(totalAmount, 'percentage');
+}
 
-        if (data.success) {
-            splitExpenses = splitExpenses.filter(e => e._id !== id);
-            showNotification(data.message, 'success');
-            updateSplitExpensesDisplay();
+/**
+ * Update custom split
+ */
+function updateCustomSplit() {
+    const totalAmount = parseFloat(document.getElementById('splitTotalAmount')?.value) || 0;
+    updateSplitSummary(totalAmount, 'custom');
+}
+
+// ===================================================================
+// 17. CHART MANAGEMENT
+// ===================================================================
+
+/**
+ * Chart Manager
+ */
+const ChartManager = {
+    charts: {},
+    
+    /**
+     * Destroy all charts
+     */
+    destroyAll() {
+        Object.keys(this.charts).forEach(key => {
+            if (this.charts[key]) {
+                this.charts[key].destroy();
+                this.charts[key] = null;
+            }
+        });
+    },
+    
+    /**
+     * Create trend chart
+     */
+    createTrendChart() {
+        const canvas = document.getElementById('trendChart');
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        if (this.charts.trendChart) {
+            this.charts.trendChart.destroy();
+        }
+        
+        const months = getLastMonths(6);
+        const data = months.map(date => {
+            const month = date.getMonth();
+            const year = date.getFullYear();
+            const expenses = ExpenseService.getByMonth(month, year)
+                .filter(e => e.type === 'expense');
+            const income = ExpenseService.getByMonth(month, year)
+                .filter(e => e.type === 'income');
+            const totalExpenses = sumBy(expenses, 'amount');
+            const totalIncome = sumBy(income, 'amount') || AppState.monthlyIncome;
+            const savings = Math.max(0, totalIncome - totalExpenses);
+            return { income: totalIncome, expenses: totalExpenses, savings };
+        });
+        
+        this.charts.trendChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: months.map(d => `${getMonthAbbr(d.getMonth())} ${d.getFullYear()}`),
+                datasets: [
+                    {
+                        label: 'Income',
+                        data: data.map(d => d.income),
+                        backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                        borderColor: 'rgb(16, 185, 129)',
+                        borderWidth: 2
+                    },
+                    {
+                        label: 'Expenses',
+                        data: data.map(d => d.expenses),
+                        backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                        borderColor: 'rgb(239, 68, 68)',
+                        borderWidth: 2
+                    },
+                    {
+                        label: 'Savings',
+                        data: data.map(d => d.savings),
+                        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                        borderColor: 'rgb(59, 130, 246)',
+                        borderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + getCurrencySymbol() + 
+                                       formatCurrency(context.parsed.y);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return getCurrencySymbol() + formatCurrency(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    },
+    
+    /**
+     * Create income/expense/savings chart
+     */
+    createIncomeExpenseChart() {
+        const canvas = document.getElementById('incomeExpenseChart');
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        if (this.charts.incomeExpenseChart) {
+            this.charts.incomeExpenseChart.destroy();
+        }
+        
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+        
+        const expenses = ExpenseService.getByMonth(currentMonth, currentYear)
+            .filter(e => e.type === 'expense');
+        const income = ExpenseService.getByMonth(currentMonth, currentYear)
+            .filter(e => e.type === 'income');
+        
+        const totalExpenses = sumBy(expenses, 'amount');
+        const totalIncome = sumBy(income, 'amount') || AppState.monthlyIncome;
+        const savings = Math.max(0, totalIncome - totalExpenses);
+        
+        this.charts.incomeExpenseChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Income', 'Expenses', 'Savings'],
+                datasets: [{
+                    data: [totalIncome, totalExpenses, savings],
+                    backgroundColor: [
+                        'rgba(16, 185, 129, 0.8)',
+                        'rgba(239, 68, 68, 0.8)',
+                        'rgba(59, 130, 246, 0.8)'
+                    ],
+                    borderColor: [
+                        'rgb(16, 185, 129)',
+                        'rgb(239, 68, 68)',
+                        'rgb(59, 130, 246)'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                return `${label}: ${getCurrencySymbol()}${formatCurrency(value)}`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    },
+    
+    /**
+     * Create monthly trend chart
+     */
+    createMonthlyTrendChart() {
+        const canvas = document.getElementById('monthlyTrendChart');
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        if (this.charts.monthlyTrendChart) {
+            this.charts.monthlyTrendChart.destroy();
+        }
+        
+        const months = getLastMonths(6);
+        const data = months.map(date => {
+            const month = date.getMonth();
+            const year = date.getFullYear();
+            const expenses = ExpenseService.getByMonth(month, year)
+                .filter(e => e.type === 'expense');
+            const income = ExpenseService.getByMonth(month, year)
+                .filter(e => e.type === 'income');
+            return {
+                expenses: sumBy(expenses, 'amount'),
+                income: sumBy(income, 'amount') || AppState.monthlyIncome
+            };
+        });
+        
+        this.charts.monthlyTrendChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: months.map(d => `${getMonthAbbr(d.getMonth())} ${d.getFullYear()}`),
+                datasets: [
+                    {
+                        label: 'Income',
+                        data: data.map(d => d.income),
+                        borderColor: 'rgb(16, 185, 129)',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    },
+                    {
+                        label: 'Expenses',
+                        data: data.map(d => d.expenses),
+                        borderColor: 'rgb(239, 68, 68)',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return getCurrencySymbol() + formatCurrency(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    },
+    
+    /**
+     * Create category chart
+     */
+    createCategoryChart() {
+        const canvas = document.getElementById('categoryChart');
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        if (this.charts.categoryChart) {
+            this.charts.categoryChart.destroy();
+        }
+        
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+        
+        const expenses = ExpenseService.getByMonth(currentMonth, currentYear)
+            .filter(e => e.type === 'expense');
+        
+        const categoryTotals = groupBy(expenses, 'category');
+        const sorted = Object.entries(categoryTotals)
+            .map(([category, items]) => ({
+                category,
+                total: sumBy(items, 'amount')
+            }))
+            .sort((a, b) => b.total - a.total);
+        
+        const labels = sorted.map(item => item.category);
+        const data = sorted.map(item => item.total);
+        const colors = sorted.map(item => CategoryService.getColor(item.category));
+        
+        this.charts.categoryChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: colors,
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return `${label}: ${getCurrencySymbol()}${formatCurrency(value)} (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    },
+    
+    /**
+     * Create detailed category chart
+     */
+    createDetailedCategoryChart() {
+        const canvas = document.getElementById('detailedCategoryChart');
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        if (this.charts.detailedCategoryChart) {
+            this.charts.detailedCategoryChart.destroy();
+        }
+        
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+        
+        const expenses = ExpenseService.getByMonth(currentMonth, currentYear)
+            .filter(e => e.type === 'expense');
+        
+        const categoryTotals = groupBy(expenses, 'category');
+        const sorted = Object.entries(categoryTotals)
+            .map(([category, items]) => ({
+                category,
+                total: sumBy(items, 'amount'),
+                count: items.length
+            }))
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 8);
+        
+        const labels = sorted.map(item => item.category);
+        const data = sorted.map(item => item.total);
+        const colors = sorted.map(item => CategoryService.getColor(item.category));
+        
+        this.charts.detailedCategoryChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Amount Spent',
+                    data: data,
+                    backgroundColor: colors.map(c => c + 'CC'),
+                    borderColor: colors,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.parsed.y || 0;
+                                return `${getCurrencySymbol()}${formatCurrency(value)}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return getCurrencySymbol() + formatCurrency(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    },
+    
+    /**
+     * Update all charts
+     */
+    updateAll() {
+        this.destroyAll();
+        this.createTrendChart();
+        this.createIncomeExpenseChart();
+        this.createMonthlyTrendChart();
+        this.createCategoryChart();
+        this.createDetailedCategoryChart();
+    },
+    
+    /**
+     * Resize all charts
+     */
+    resizeAll() {
+        Object.values(this.charts).forEach(chart => {
+            if (chart && typeof chart.resize === 'function') {
+                chart.resize();
+            }
+        });
+    }
+};
+
+// ===================================================================
+// 18. SECTION MANAGEMENT
+// ===================================================================
+
+/**
+ * Show section
+ */
+function showSection(sectionId) {
+    // Hide all sections
+    document.querySelectorAll('main > section').forEach(section => {
+        section.classList.add('hidden');
+    });
+    
+    // Show selected section
+    const section = document.getElementById(sectionId);
+    if (section) {
+        section.classList.remove('hidden');
+    }
+    
+    // Update active button
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    const navMap = {
+        'dashboard': 0,
+        'expenses': 1,
+        'analytics': 2,
+        'recurring': 3,
+        'bills': 4,
+        'split': 5
+    };
+    
+    const index = navMap[sectionId];
+    const navButtons = document.querySelectorAll('.nav-btn');
+    if (navButtons[index]) {
+        navButtons[index].classList.add('active');
+    }
+    
+    AppState.currentSection = sectionId;
+    
+    // Render section
+    switch(sectionId) {
+        case 'dashboard':
+            UIRenderer.renderDashboard();
+            break;
+        case 'expenses':
+            UIRenderer.renderExpenses();
+            break;
+        case 'analytics':
+            setTimeout(() => {
+                ChartManager.updateAll();
+                ChartManager.resizeAll();
+            }, 100);
+            break;
+        case 'recurring':
+            UIRenderer.renderRecurring();
+            break;
+        case 'bills':
+            UIRenderer.renderBills();
+            break;
+        case 'split':
+            UIRenderer.renderSplitExpenses();
+            break;
+    }
+}
+
+// ===================================================================
+// 19. MODAL MANAGEMENT
+// ===================================================================
+
+/**
+ * Show modal
+ */
+function showModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+/**
+ * Close modal
+ */
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+}
+
+/**
+ * Toggle profile modal
+ */
+function toggleProfile() {
+    const modal = document.getElementById('profileModal');
+    if (!modal) return;
+    
+    const isHidden = modal.classList.contains('hidden');
+    if (isHidden && AppState.user) {
+        UIRenderer.updateUserDisplay();
+    }
+    modal.classList.toggle('hidden');
+    document.body.style.overflow = isHidden ? 'hidden' : '';
+}
+
+/**
+ * Show split expense modal
+ */
+function showSplitExpenseModal() {
+    showModal('splitExpenseModal');
+    setTimeout(updateSplitCalculation, 100);
+}
+
+/**
+ * Close split expense modal
+ */
+function closeSplitExpenseModal() {
+    closeModal('splitExpenseModal');
+    AppState.editingSplitExpenseId = null;
+    const saveButton = document.querySelector('#splitExpenseModal .btn-primary');
+    if (saveButton) {
+        saveButton.innerHTML = '<i class="fas fa-save"></i> Save Split Expense';
+    }
+}
+
+/**
+ * Show add recurring modal
+ */
+function showAddRecurringModal() {
+    showModal('addRecurringModal');
+    document.getElementById('recurringStartDate').valueAsDate = new Date();
+}
+
+/**
+ * Close add recurring modal
+ */
+function closeAddRecurringModal() {
+    closeModal('addRecurringModal');
+}
+
+/**
+ * Show add bill modal
+ */
+function showAddBillModal() {
+    showModal('addBillModal');
+    document.getElementById('billDueDate').valueAsDate = new Date();
+}
+
+/**
+ * Close add bill modal
+ */
+function closeAddBillModal() {
+    closeModal('addBillModal');
+}
+
+/**
+ * Show add category modal
+ */
+function showAddCategoryModal() {
+    AppState.editingCategoryId = null;
+    document.getElementById('newCategoryName').value = '';
+    document.getElementById('newCategoryIcon').value = '📝';
+    document.getElementById('newCategoryColor').value = '#6C757D';
+    const title = document.querySelector('#addCategoryModal .modal-header h3');
+    if (title) {
+        title.innerHTML = '<i class="fas fa-plus-circle"></i> Add New Category';
+    }
+    showModal('addCategoryModal');
+}
+
+/**
+ * Close add category modal
+ */
+function closeAddCategoryModal() {
+    closeModal('addCategoryModal');
+}
+
+/**
+ * Show manage categories modal
+ */
+function showManageCategories() {
+    updateDefaultCategoriesDisplay();
+    updateCategoryManagement();
+    showModal('manageCategoriesModal');
+}
+
+/**
+ * Close manage categories modal
+ */
+function closeManageCategoriesModal() {
+    closeModal('manageCategoriesModal');
+}
+
+// ===================================================================
+// 20. REFRESH FUNCTIONS
+// ===================================================================
+
+/**
+ * Refresh all data
+ */
+async function refreshAllData() {
+    showLoading(true);
+    try {
+        await Promise.all([
+            ExpenseService.getAll(),
+            CategoryService.getAll(),
+            RecurringService.getAll(),
+            BillService.getAll(),
+            SplitService.getAll()
+        ]);
+        
+        // Update UI
+        populateCategoryDropdowns();
+        UIRenderer.updateCurrency();
+        UIRenderer.updateDateDisplay();
+        
+        // Render current section
+        switch(AppState.currentSection) {
+            case 'dashboard':
+                UIRenderer.renderDashboard();
+                break;
+            case 'expenses':
+                UIRenderer.renderExpenses();
+                break;
+            case 'analytics':
+                ChartManager.updateAll();
+                break;
+            case 'recurring':
+                UIRenderer.renderRecurring();
+                break;
+            case 'bills':
+                UIRenderer.renderBills();
+                break;
+            case 'split':
+                UIRenderer.renderSplitExpenses();
+                break;
         }
     } catch (error) {
-        showNotification('Failed to delete split expense', 'error');
+        console.error('Refresh error:', error);
+        showNotification('Failed to refresh data', 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
-/* ======================
-   FILTERS
-====================== */
-function initializeFilters() {
-    const filterType = document.getElementById('filterType');
-    const filterCategory = document.getElementById('filterCategory');
-    const filterStartDate = document.getElementById('filterStartDate');
-    const filterEndDate = document.getElementById('filterEndDate');
+// ===================================================================
+// 21. USER FUNCTIONS
+// ===================================================================
 
-    if (filterType) filterType.addEventListener('change', applyFilters);
-    if (filterCategory) filterCategory.addEventListener('change', applyFilters);
-    if (filterStartDate) filterStartDate.addEventListener('change', applyFilters);
-    if (filterEndDate) filterEndDate.addEventListener('change', applyFilters);
-
-    // Populate filter category dropdown
-    if (filterCategory) {
-        const allCategories = getAllCategories();
-        filterCategory.innerHTML = `
-            <option value="">All Categories</option>
-            ${allCategories.map(cat => 
-                `<option value="${cat.name}">${cat.icon} ${cat.name}</option>`
-            ).join('')}
-        `;
-    }
-}
-
-function applyFilters() {
-    loadExpenses();
-}
-
-function clearFilters() {
-    document.getElementById('filterType').value = '';
-    document.getElementById('filterCategory').value = '';
-    document.getElementById('filterStartDate').value = '';
-    document.getElementById('filterEndDate').value = '';
-    loadExpenses();
-}
-
-/* ======================
-   CHART DOWNLOAD FUNCTION
-====================== */
-function downloadChart(chartId) {
-    const canvas = document.getElementById(chartId);
-    if (!canvas) {
-        showNotification('Chart not found', 'error');
+/**
+ * Save profile
+ */
+async function handleSaveProfile() {
+    const name = document.getElementById('profileName')?.value?.trim();
+    const monthlyIncome = parseFloat(document.getElementById('profileIncome')?.value);
+    const currency = document.getElementById('profileCurrency')?.value;
+    
+    if (!name) {
+        showNotification('Please enter your name', 'error');
         return;
     }
-
+    
+    showLoading(true);
     try {
-        // Create a link element
-        const link = document.createElement('a');
-        link.download = `${chartId}-${new Date().toISOString().split('T')[0]}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
+        const result = await AuthService.updateProfile({
+            name,
+            monthlyIncome: monthlyIncome || 0,
+            currency: currency || 'INR'
+        });
         
-        showNotification('Chart downloaded successfully', 'success');
+        if (result.success) {
+            showNotification('Profile updated successfully', 'success');
+            UIRenderer.updateUserDisplay();
+            UIRenderer.updateCurrency();
+            toggleProfile();
+            await refreshAllData();
+        }
     } catch (error) {
-        console.error('Download error:', error);
-        showNotification('Failed to download chart', 'error');
+        showNotification(error.message || 'Failed to update profile', 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
-/* ======================
-   UTILITY FUNCTIONS
-====================== */
-function formatDate(dateString) {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
+/**
+ * Change currency
+ */
+async function handleChangeCurrency(currency) {
+    if (currency === AppState.currency) return;
+    
+    showLoading(true);
+    try {
+        const result = await AuthService.updateProfile({ currency });
+        if (result.success) {
+            AppState.currency = currency;
+            localStorage.setItem(CONFIG.STORAGE_KEYS.CURRENCY, currency);
+            UIRenderer.updateCurrency();
+            await refreshAllData();
+            showNotification(`Currency changed to ${currency}`, 'success');
+        }
+    } catch (error) {
+        showNotification('Failed to change currency', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+/**
+ * Logout
+ */
+async function handleLogout() {
+    if (confirm('Are you sure you want to logout?')) {
+        await AuthService.logout();
+    }
+}
+
+/**
+ * Switch account
+ */
+function handleSwitchAccount() {
+    if (confirm('Switch to another account? You will be logged out.')) {
+        handleLogout();
+    }
+}
+
+/**
+ * Delete account
+ */
+async function handleDeleteAccount() {
+    if (confirm('Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently lost.')) {
+        showLoading(true);
+        try {
+            const result = await AuthService.deleteAccount();
+            if (result.success) {
+                showNotification('Account deleted successfully', 'success');
+                setTimeout(() => {
+                    window.location.href = 'login.html';
+                }, 2000);
+            }
+        } catch (error) {
+            showNotification(error.message || 'Failed to delete account', 'error');
+        } finally {
+            showLoading(false);
+        }
+    }
+}
+
+// ===================================================================
+// 22. MOBILE MENU
+// ===================================================================
+
+/**
+ * Setup mobile menu
+ */
+function setupMobileMenu() {
+    const menuToggle = document.getElementById('mobileMenuToggle');
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    
+    if (!menuToggle || !sidebar || !overlay) return;
+    
+    function toggleSidebar() {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('active');
+        menuToggle.classList.toggle('open');
+        
+        const icon = menuToggle.querySelector('i');
+        if (icon) {
+            icon.className = sidebar.classList.contains('open') ? 'fas fa-times' : 'fas fa-bars';
+        }
+    }
+    
+    function closeSidebar() {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('active');
+        menuToggle.classList.remove('open');
+        const icon = menuToggle.querySelector('i');
+        if (icon) {
+            icon.className = 'fas fa-bars';
+        }
+    }
+    
+    menuToggle.addEventListener('click', toggleSidebar);
+    overlay.addEventListener('click', closeSidebar);
+    
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (window.innerWidth <= 768) {
+                closeSidebar();
+            }
+        });
+    });
+    
+    window.addEventListener('resize', () => {
+        if (window.innerWidth > 768) {
+            closeSidebar();
+        }
     });
 }
 
-function showNotification(message, type = 'info') {
-    const existing = document.querySelector('.notification');
-    if (existing) existing.remove();
+// ===================================================================
+// 23. INITIALIZATION
+// ===================================================================
 
-    const notification = document.createElement('div');
+/**
+ * Initialize application
+ */
+async function initializeApp() {
+    console.log(`${CONFIG.APP_NAME} v${CONFIG.VERSION} initializing...`);
     
-    // Set icon based on type
-    let icon = 'info-circle';
-    if (type === 'success') icon = 'check-circle';
-    else if (type === 'error') icon = 'exclamation-circle';
-    else if (type === 'warning') icon = 'exclamation-triangle';
-    
-    notification.className = `notification notification-${type}`;
-    notification.innerHTML = `
-        <i class="fas fa-${icon}"></i>
-        <span>${message}</span>
-    `;
-
-    document.body.appendChild(notification);
-
-    setTimeout(() => notification.classList.add('show'), 10);
-
-    setTimeout(() => {
-        notification.classList.remove('show');
-        setTimeout(() => notification.remove(), 300);
-    }, 4000);
-}
-
-function updateAllDisplays() {
-    loadExpenses();
-    updateDashboard();
-    loadAnalytics();
-    updateRecurringExpensesDisplay();
-    updateBillRemindersDisplay();
-    updateSplitExpensesDisplay();
-    updateBillCalendar();
-}
-
-async function logout() {
-    if (confirm('Are you sure you want to logout?')) {
-        try {
-            await apiRequest('/auth/logout', { method: 'POST' });
-        } catch (error) {
-            console.error('Logout error:', error);
+    try {
+        // Check authentication
+        if (!AppState.authToken) {
+            window.location.href = 'login.html';
+            return;
         }
         
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = 'login.html';
+        // Get current user
+        const userResult = await AuthService.getCurrentUser();
+        if (!userResult.success) {
+            showNotification('Session expired. Please login again.', 'error');
+            setTimeout(() => {
+                window.location.href = 'login.html';
+            }, 2000);
+            return;
+        }
+        
+        // Apply theme
+        ThemeManager.init();
+        
+        // Setup mobile menu
+        setupMobileMenu();
+        
+        // Update UI
+        UIRenderer.updateDateDisplay();
+        UIRenderer.updateUserDisplay();
+        UIRenderer.updateCurrency();
+        
+        // Load data
+        await refreshAllData();
+        
+        // Show dashboard by default
+        showSection('dashboard');
+        
+        // Set up event listeners
+        setupEventListeners();
+        
+        console.log(`${CONFIG.APP_NAME} initialized successfully`);
+        showNotification(`Welcome back, ${AppState.user?.name || 'User'}!`, 'success');
+        
+    } catch (error) {
+        console.error('Initialization error:', error);
+        showNotification('Failed to load application. Please refresh.', 'error');
     }
 }
 
-function switchAccount() {
-    if (confirm('Switch to another account? You will be logged out.')) {
-        logout();
-    }
-}
-
-// Add notification styles
-const style = document.createElement('style');
-style.textContent = `
-/* Profile modal button alignment */
-.modal-actions {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 2rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border-color);
-}
-
-.modal-actions .btn-secondary {
-    order: 1;
-}
-
-.modal-actions .btn-primary {
-    order: 2;
-}
-
-/* Analytics grid layout update */
-.analytics-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-}
-
-.analytics-card.full-width {
-    grid-column: 1 / -1;
-    min-height: 400px;
-}
-
-.analytics-card.half-width {
-    min-height: 350px;
-}
-
-/* For larger screens, show two charts side by side */
-@media (min-width: 1024px) {
-    .analytics-grid {
-        grid-template-columns: 1fr 1fr;
+/**
+ * Setup event listeners
+ */
+function setupEventListeners() {
+    // Currency selector
+    const currencySelector = document.getElementById('currencySelector');
+    if (currencySelector) {
+        currencySelector.addEventListener('change', function() {
+            handleChangeCurrency(this.value);
+        });
     }
     
-    .analytics-card.full-width {
-        grid-column: 1 / -1;
+    // Expense form
+    const expenseForm = document.querySelector('.expense-form-grid');
+    if (expenseForm) {
+        expenseForm.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddExpense();
+            }
+        });
     }
-}
-
-/* Chart wrapper adjustments for better visibility */
-.chart-wrapper {
-    position: relative;
-    height: 300px;
-    width: 100%;
-}
-
-.analytics-card.full-width .chart-wrapper {
-    height: 350px;
-}
-
-/* Button styles for delete account */
-.btn-danger {
-    background: var(--danger);
-    color: white;
-    border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    font-weight: 500;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    justify-content: center;
-}
-
-.btn-danger:hover {
-    background: #dc2626;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-}
-
-.actions-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin-top: 1rem;
-}
-
-/* Profile email display */
-.profile-email {
-    padding: 0.75rem;
-    background: var(--bg-hover);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
-    font-weight: 500;
-    color: var(--text-primary);
-}
-
-/* ================= NOTIFICATION FIXES FOR DARK MODE ================= */
-.notification {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 0.75rem 1.25rem;
-    border-radius: 8px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    transform: translateX(120%);
-    transition: transform 0.3s ease;
-    z-index: 10000;
-    min-width: 280px;
-    max-width: 350px;
-    border-left: 4px solid #4361ee;
-    font-size: 0.875rem;
-    background: #ffffff !important;
-    color: #1a1a2e !important;
-    border: 1px solid #d0d0e0 !important;
-    opacity: 1 !important;
-}
-
-.notification.show {
-    transform: translateX(0);
-}
-
-.notification-success {
-    border-left-color: #10b981 !important;
-    background: #d1fae5 !important;
-    color: #065f46 !important;
-}
-
-.notification-success i {
-    color: #10b981 !important;
-}
-
-.notification-error {
-    border-left-color: #ef4444 !important;
-    background: #fee2e2 !important;
-    color: #991b1b !important;
-}
-
-.notification-error i {
-    color: #ef4444 !important;
-}
-
-.notification-info {
-    border-left-color: #3b82f6 !important;
-    background: #dbeafe !important;
-    color: #1e40af !important;
-}
-
-.notification-info i {
-    color: #3b82f6 !important;
-}
-
-/* Dark mode overrides - SOLID backgrounds */
-[data-theme="dark"] .notification {
-    background: #1e293b !important;
-    color: #f1f5f9 !important;
-    border: 1px solid #334155 !important;
-    opacity: 1 !important;
-}
-
-[data-theme="dark"] .notification-success {
-    background: #065f46 !important;
-    color: #d1fae5 !important;
-    border-left-color: #34d399 !important;
-    border: 1px solid #34d399 !important;
-}
-
-[data-theme="dark"] .notification-success i {
-    color: #34d399 !important;
-}
-
-[data-theme="dark"] .notification-error {
-    background: #7f1d1d !important;
-    color: #fecaca !important;
-    border-left-color: #f87171 !important;
-    border: 1px solid #f87171 !important;
-}
-
-[data-theme="dark"] .notification-error i {
-    color: #f87171 !important;
-}
-
-[data-theme="dark"] .notification-info {
-    background: #1e3a5f !important;
-    color: #bfdbfe !important;
-    border-left-color: #60a5fa !important;
-    border: 1px solid #60a5fa !important;
-}
-
-[data-theme="dark"] .notification-info i {
-    color: #60a5fa !important;
-}
-
-[data-theme="dark"] .notification-warning {
-    background: #78350f !important;
-    color: #fef3c7 !important;
-    border-left-color: #fbbf24 !important;
-    border: 1px solid #fbbf24 !important;
-}
-
-[data-theme="dark"] .notification-warning i {
-    color: #fbbf24 !important;
-}
-
-/* Category Management Styles */
-.categories-management {
-    padding: 0.5rem;
-}
-
-.categories-section {
-    margin-bottom: 1.5rem;
-}
-
-.categories-section h4 {
-    margin-bottom: 1rem;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-}
-
-.categories-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.category-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.75rem 1rem;
-    background: var(--bg-hover);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
-    transition: all 0.2s ease;
-}
-
-.category-item:hover {
-    transform: translateX(4px);
-    background: var(--bg-card);
-    border-color: var(--primary);
-}
-
-.category-info {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-}
-
-.category-icon {
-    font-size: 1.25rem;
-    width: 40px;
-    text-align: center;
-}
-
-.category-name {
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 0.25rem;
-}
-
-.category-count {
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-}
-
-.category-badge {
-    padding: 0.25rem 0.75rem;
-    background: var(--primary-light);
-    color: var(--primary);
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 600;
-}
-
-.category-actions {
-    display: flex;
-    gap: 0.5rem;
-}
-
-.category-actions .btn-icon {
-    padding: 0.375rem;
-    font-size: 0.875rem;
-}
-
-.category-actions .btn-icon.edit {
-    background: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
-}
-
-.category-actions .btn-icon.delete {
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
-}
-
-.category-actions .btn-icon:hover {
-    transform: scale(1.1);
-}
-
-.add-category-option {
-    color: var(--primary) !important;
-    font-weight: 600 !important;
-    background: var(--bg-hover) !important;
-}
-
-/* Category form styles */
-.category-form .form-group {
-    margin-bottom: 1.5rem;
-}
-
-.category-form select {
-    font-size: 1.1rem;
-    padding: 0.75rem;
-}
-
-.category-form option {
-    font-size: 1rem;
-    padding: 0.5rem;
-}
-
-/* Color picker styling */
-.category-form input[type="color"] {
-    width: 100%;
-    height: 50px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
-    cursor: pointer;
-}
-
-/* Badge styles */
-.badge {
-    padding: 0.25rem 0.5rem;
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 500;
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-}
-
-.badge-success {
-    background: var(--success-light);
-    color: var(--success);
-}
-
-.badge-danger {
-    background: var(--danger-light);
-    color: var(--danger);
-}
-
-.badge-warning {
-    background: var(--warning-light);
-    color: var(--warning);
-}
-
-/* Recurring card styles */
-.recurring-card {
-    background: var(--bg-card);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    margin-bottom: 1rem;
-    border-left: 4px solid var(--primary);
-    box-shadow: var(--shadow-md);
-}
-
-.recurring-card.inactive {
-    border-left-color: var(--text-secondary);
-    opacity: 0.8;
-}
-
-.recurring-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-}
-
-.recurring-header h3 {
-    font-size: 1.25rem;
-    color: var(--text-primary);
-}
-
-.recurring-badge {
-    padding: 0.25rem 0.75rem;
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.recurring-badge.monthly {
-    background: var(--primary-light);
-    color: var(--primary);
-}
-
-.recurring-badge.yearly {
-    background: var(--warning-light);
-    color: var(--warning);
-}
-
-.recurring-badge.weekly {
-    background: var(--success-light);
-    color: var(--success);
-}
-
-.recurring-content {
-    margin-bottom: 1rem;
-}
-
-.recurring-amount {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-}
-
-.amount-label {
-    color: var(--text-secondary);
-    font-weight: 500;
-}
-
-.amount-value {
-    font-weight: 700;
-    font-size: 1.25rem;
-    color: var(--text-primary);
-}
-
-.recurring-details {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-}
-
-.detail-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: var(--text-secondary);
-}
-
-.detail-item i {
-    width: 20px;
-    color: var(--primary);
-}
-
-.due-status {
-    padding: 0.5rem;
-    background: var(--bg-hover);
-    border-radius: var(--radius-md);
-    text-align: center;
-    font-weight: 500;
-    color: var(--primary);
-}
-
-.due-status.text-danger {
-    background: var(--danger-light);
-    color: var(--danger);
-}
-
-.recurring-actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-}
-
-/* Bill reminder styles */
-.bill-reminder-card {
-    background: var(--bg-card);
-    border-radius: var(--radius-lg);
-    padding: 1.25rem;
-    margin-bottom: 1rem;
-    border-left: 4px solid var(--warning);
-    box-shadow: var(--shadow-md);
-}
-
-.bill-reminder-card.paid {
-    border-left-color: var(--success);
-    opacity: 0.8;
-}
-
-.bill-reminder-card.overdue {
-    border-left-color: var(--danger);
-    animation: pulse 2s infinite;
-}
-
-.bill-reminder-card.upcoming {
-    border-left-color: var(--warning);
-}
-
-.bill-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-}
-
-.bill-title {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.bill-title h4 {
-    margin: 0;
-    font-size: 1.1rem;
-}
-
-.bill-status {
-    padding: 0.25rem 0.5rem;
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 600;
-}
-
-.bill-status.paid {
-    background: var(--success-light);
-    color: var(--success);
-}
-
-.bill-status.overdue {
-    background: var(--danger-light);
-    color: var(--danger);
-}
-
-.bill-status.upcoming {
-    background: var(--warning-light);
-    color: var(--warning);
-}
-
-.bill-amount {
-    font-weight: 700;
-    font-size: 1.25rem;
-    color: var(--text-primary);
-}
-
-.bill-details {
-    margin-bottom: 1rem;
-}
-
-.detail-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.5rem;
-}
-
-.detail-row .label {
-    color: var(--text-secondary);
-}
-
-.detail-row .value {
-    color: var(--text-primary);
-    font-weight: 500;
-}
-
-.bill-actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-}
-
-/* Calendar styles - Full view */
-.calendar-section {
-    margin-top: 2rem;
-    background: var(--bg-card);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    box-shadow: var(--shadow-md);
-}
-
-.calendar-section h3 {
-    margin-bottom: 1rem;
-    font-size: 1.25rem;
-    color: var(--text-primary);
-}
-
-.calendar {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 0.5rem;
-    margin-top: 1rem;
-}
-
-.calendar-day-header {
-    text-align: center;
-    font-weight: 600;
-    color: var(--text-secondary);
-    padding: 0.5rem;
-    font-size: 0.875rem;
-    text-transform: uppercase;
-}
-
-.calendar-day {
-    aspect-ratio: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-md);
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    font-weight: 500;
-    position: relative;
-    transition: all 0.2s ease;
-    cursor: pointer;
-}
-
-.calendar-day:hover {
-    transform: scale(1.05);
-    box-shadow: var(--shadow-sm);
-}
-
-.calendar-day.today {
-    background: var(--warning);
-    color: white;
-    font-weight: 600;
-}
-
-.calendar-day.has-bill {
-    background: var(--danger-light);
-    color: var(--danger);
-    font-weight: 600;
-    border: 2px solid var(--danger);
-}
-
-.calendar-day.has-bill:hover {
-    background: var(--danger);
-    color: white;
-}
-
-.calendar-day.has-bill .bill-indicator {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 6px;
-    height: 6px;
-    background: var(--danger);
-    border-radius: 50%;
-}
-
-.calendar-day.has-bill:hover .bill-indicator {
-    background: white;
-}
-
-.calendar-day.empty {
-    background: transparent;
-    cursor: default;
-}
-
-.calendar-day.empty:hover {
-    transform: none;
-    box-shadow: none;
-}
-
-/* Split expense styles */
-.split-card {
-    background: var(--bg-card);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    margin-bottom: 1rem;
-    box-shadow: var(--shadow-md);
-    border: 1px solid var(--border-color);
-}
-
-.split-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 1rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.split-header h3 {
-    font-size: 1.25rem;
-    color: var(--text-primary);
-    margin-bottom: 0.25rem;
-}
-
-.split-subtitle {
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-}
-
-.split-status {
-    padding: 0.25rem 0.75rem;
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.split-status.settled {
-    background: var(--success-light);
-    color: var(--success);
-}
-
-.split-status.pending {
-    background: var(--warning-light);
-    color: var(--warning);
-}
-
-.split-details {
-    margin: 1rem 0;
-}
-
-.split-members-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.split-member-detail {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem;
-    background: var(--bg-hover);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
-}
-
-.member-info {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.member-name {
-    font-weight: 500;
-    color: var(--text-primary);
-}
-
-.member-status {
-    padding: 0.125rem 0.5rem;
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-
-.member-status.paid {
-    background: var(--success-light);
-    color: var(--success);
-}
-
-.member-status.unpaid {
-    background: var(--warning-light);
-    color: var(--warning);
-}
-
-.member-amount {
-    font-weight: 700;
-    color: var(--text-primary);
-}
-
-.split-actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border-color);
-}
-
-.split-actions .btn-secondary,
-.split-actions .btn-success,
-.split-actions .btn-danger {
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
-}
-
-/* Split form styles */
-.split-members-section {
-    margin: 1.5rem 0;
-}
-
-.split-members-section h4 {
-    margin-bottom: 1rem;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.split-inputs {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin-bottom: 1rem;
-}
-
-.split-member-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.75rem;
-    background: var(--bg-hover);
-    border-radius: var(--radius-md);
-    margin-bottom: 0.5rem;
-    border: 1px solid var(--border-color);
-}
-
-.member-name {
-    font-weight: 500;
-    color: var(--text-primary);
-    flex: 1;
-}
-
-.member-input-group {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0 1rem;
-}
-
-.member-input-group input {
-    width: 80px;
-    padding: 0.5rem;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    background: var(--bg-card);
-    color: var(--text-primary);
-    text-align: right;
-}
-
-.member-amount {
-    font-weight: 700;
-    color: var(--text-primary);
-    min-width: 100px;
-    text-align: right;
-}
-
-.split-summary {
-    background: var(--bg-card);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    margin: 1.5rem 0;
-    border: 1px solid var(--border-color);
-}
-
-.summary-total,
-.summary-per-person,
-.summary-percentage,
-.summary-entered,
-.summary-difference {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--border-light);
-}
-
-.summary-total {
-    font-size: 1.25rem;
-    font-weight: 700;
-}
-
-.summary-total:last-child,
-.summary-per-person:last-child,
-.summary-percentage:last-child,
-.summary-entered:last-child,
-.summary-difference:last-child {
-    border-bottom: none;
-}
-
-/* Calendar Full View Styles */
-.calendar-section {
-    margin-top: 2rem;
-    background: var(--bg-card);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    box-shadow: var(--shadow-md);
-    width: 100%;
-}
-
-.calendar-section h3 {
-    margin-bottom: 1rem;
-    font-size: 1.25rem;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.calendar {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 0.5rem;
-    margin-top: 1rem;
-    width: 100%;
-}
-
-.calendar-day-header {
-    text-align: center;
-    font-weight: 600;
-    color: var(--text-secondary);
-    padding: 0.5rem;
-    font-size: 0.875rem;
-    text-transform: uppercase;
-}
-
-.calendar-day {
-    aspect-ratio: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-md);
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    font-weight: 500;
-    position: relative;
-    transition: all 0.2s ease;
-    cursor: pointer;
-    font-size: 0.9rem;
-}
-
-.calendar-day:hover {
-    transform: scale(1.05);
-    box-shadow: var(--shadow-sm);
-}
-
-.calendar-day.today {
-    background: var(--warning);
-    color: white;
-    font-weight: 600;
-}
-
-.calendar-day.has-bill {
-    background: var(--primary);
-    color: white;
-    font-weight: 600;
-}
-
-.calendar-day.has-bill .bill-indicator {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 6px;
-    height: 6px;
-    background: var(--danger);
-    border-radius: 50%;
-}
-
-.calendar-day.empty {
-    background: transparent;
-    cursor: default;
-}
-
-.calendar-day.empty:hover {
-    transform: none;
-    box-shadow: none;
-}
-/* ================= ENHANCED CALENDAR STYLES ================= */
-.calendar-section {
-    margin-top: 2rem;
-    background: var(--bg-card);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    box-shadow: var(--shadow-md);
-    width: 100%;
-}
-
-.calendar-section h3 {
-    margin-bottom: 1rem;
-    font-size: 1.25rem;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.calendar {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 0.5rem;
-    margin-top: 1rem;
-    width: 100%;
-}
-
-.calendar-day-header {
-    text-align: center;
-    font-weight: 600;
-    color: var(--text-secondary);
-    padding: 0.5rem;
-    font-size: 0.875rem;
-    text-transform: uppercase;
-    background: var(--bg-hover);
-    border-radius: var(--radius-sm);
-}
-
-.calendar-day {
-    aspect-ratio: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-md);
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    font-weight: 500;
-    position: relative;
-    transition: all 0.2s ease;
-    cursor: pointer;
-    font-size: 0.9rem;
-    border: 1px solid transparent;
-}
-
-.calendar-day:hover {
-    transform: scale(1.05);
-    box-shadow: var(--shadow-sm);
-    border-color: var(--primary);
-}
-
-.calendar-day.today {
-    background: var(--warning);
-    color: white;
-    font-weight: 600;
-    border: 1px solid var(--warning);
-}
-
-.calendar-day.has-bill {
-    background: var(--danger-light);
-    color: var(--danger);
-    font-weight: 600;
-    border: 2px solid var(--danger);
-}
-
-.calendar-day.has-bill:hover {
-    background: var(--danger);
-    color: white;
-}
-
-.calendar-day.has-bill .bill-indicator {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 6px;
-    height: 6px;
-    background: var(--danger);
-    border-radius: 50%;
-}
-
-.calendar-day.has-bill:hover .bill-indicator {
-    background: white;
-}
-
-.calendar-day.empty {
-    background: transparent;
-    cursor: default;
-    border: none;
-}
-
-.calendar-day.empty:hover {
-    transform: none;
-    box-shadow: none;
-    border-color: transparent;
-}
-
-/* Bill count indicator */
-.bill-count {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    background: var(--danger);
-    color: white;
-    font-size: 0.6rem;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-}
-
-.calendar-day.has-bill:hover .bill-count {
-    background: white;
-    color: var(--danger);
-}
-
-/* Recurring expense deactivated state */
-.recurring-card.inactive {
-    border-left-color: var(--text-secondary);
-    opacity: 0.8;
-}
-
-.recurring-card.inactive .recurring-header h3 {
-    color: var(--text-secondary);
-}
-
-.recurring-card.inactive .recurring-badge {
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-}
-
-.recurring-card.inactive .due-status {
-    background: var(--danger-light);
-    color: var(--danger);
-    font-weight: 600;
-}
-
-/* ================= SPLIT EXPENSE - UNSETTLE BUTTON ================= */
-.btn-unsettle {
-    background: var(--warning);
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: var(--radius-md);
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--transition-fast);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.btn-unsettle:hover {
-    background: #d97706;
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-sm);
-}
-
-/* ================= SPLIT EXPENSE - MARK UNPAID BUTTON ================= */
-.btn-mark-unpaid {
-    background: var(--warning);
-    color: white;
-    border: none;
-    padding: 0.25rem 0.75rem;
-    border-radius: var(--radius-md);
-    font-size: 0.75rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--transition-fast);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.btn-mark-unpaid:hover {
-    background: var(--danger);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-sm);
-}
-
-/* Mark Paid button (when member is unpaid) */
-.btn-mark-paid {
-    background: var(--success);
-    color: white;
-    border: none;
-    padding: 0.25rem 0.75rem;
-    border-radius: var(--radius-md);
-    font-size: 0.75rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--transition-fast);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.btn-mark-paid:hover {
-    background: #0da271;
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-sm);
-}
-
-/* Split member detail updated styles */
-.split-member-detail {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem 1rem;
-    background: var(--bg-hover);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
-    transition: all var(--transition-fast);
-}
-
-.split-member-detail:hover {
-    border-color: var(--primary);
-}
-
-.member-info {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-}
-
-.member-name {
-    font-weight: 500;
-    color: var(--text-primary);
-    font-size: 0.95rem;
-}
-
-.member-status {
-    padding: 0.125rem 0.5rem;
-    border-radius: var(--radius-full);
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.member-status.paid {
-    background: var(--success-light);
-    color: var(--success);
-}
-
-.member-status.unpaid {
-    background: var(--warning-light);
-    color: var(--warning);
-}
-
-.member-actions {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.member-amount {
-    font-weight: 700;
-    color: var(--text-primary);
-    min-width: 100px;
-    text-align: right;
-    font-size: 0.95rem;
-}
-
-/* Split actions updated */
-.split-actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border-color);
-    flex-wrap: wrap;
-}
-
-.split-actions .btn-secondary,
-.split-actions .btn-success,
-.split-actions .btn-danger,
-.split-actions .btn-unsettle {
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-/* Responsive styles for split */
-@media (max-width: 768px) {
-    .split-member-detail {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.5rem;
+    
+    // Recurring form
+    const recurringForm = document.querySelector('.recurring-form');
+    if (recurringForm) {
+        recurringForm.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddRecurring();
+            }
+        });
     }
-
-    .member-info {
-        flex-wrap: wrap;
-        justify-content: space-between;
+    
+    // Bill form
+    const billForm = document.querySelector('.bill-form');
+    if (billForm) {
+        billForm.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddBill();
+            }
+        });
     }
-
-    .member-actions {
-        justify-content: flex-end;
-    }
-
-    .member-amount {
-        text-align: left;
-        min-width: auto;
-    }
-
-    .split-actions {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .split-actions .btn-secondary,
-    .split-actions .btn-success,
-    .split-actions .btn-danger,
-    .split-actions .btn-unsettle {
-        justify-content: center;
-        width: 100%;
-    }
-
-    .btn-mark-unpaid,
-    .btn-mark-paid {
-        padding: 0.375rem 0.75rem;
-        font-size: 0.7rem;
-    }
+    
+    // Modal close on backdrop click
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+        });
+    });
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Escape to close modals
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal:not(.hidden)').forEach(modal => {
+                modal.classList.add('hidden');
+                document.body.style.overflow = '';
+            });
+        }
+        
+        // Ctrl+1-6 for navigation
+        if (e.ctrlKey && e.key >= '1' && e.key <= '6') {
+            e.preventDefault();
+            const sections = ['dashboard', 'expenses', 'analytics', 'recurring', 'bills', 'split'];
+            const index = parseInt(e.key) - 1;
+            if (sections[index]) {
+                showSection(sections[index]);
+            }
+        }
+    });
 }
-`;
 
-document.head.appendChild(style);
+// ===================================================================
+// 24. EXPOSE GLOBALS FOR HTML
+// ===================================================================
 
-console.log('Expense Tracker fully loaded!');
+// Expose functions to global scope for HTML event handlers
+window.showSection = showSection;
+window.showModal = showModal;
+window.closeModal = closeModal;
+window.toggleProfile = toggleProfile;
+window.toggleTheme = ThemeManager.toggle.bind(ThemeManager);
+window.handleAddExpense = handleAddExpense;
+window.handleEditExpense = handleEditExpense;
+window.handleDeleteExpense = handleDeleteExpense;
+window.handleAddRecurring = handleAddRecurring;
+window.handleToggleRecurring = handleToggleRecurring;
+window.handleDeleteRecurring = handleDeleteRecurring;
+window.showAddRecurringModal = showAddRecurringModal;
+window.closeAddRecurringModal = closeAddRecurringModal;
+window.handleAddBill = handleAddBill;
+window.handleMarkBillPaid = handleMarkBillPaid;
+window.handleDeleteBill = handleDeleteBill;
+window.showAddBillModal = showAddBillModal;
+window.closeAddBillModal = closeAddBillModal;
+window.showSplitExpenseModal = showSplitExpenseModal;
+window.closeSplitExpenseModal = closeSplitExpenseModal;
+window.handleSaveSplit = handleSaveSplit;
+window.handleEditSplitExpense = handleEditSplitExpense;
+window.handleToggleSplitMember = handleToggleSplitMember;
+window.handleSettleSplit = handleSettleSplit;
+window.handleUnsettleSplit = handleUnsettleSplit;
+window.handleDeleteSplit = handleDeleteSplit;
+window.updateSplitCalculation = updateSplitCalculation;
+window.updatePercentageSplit = updatePercentageSplit;
+window.updateCustomSplit = updateCustomSplit;
+window.handleAddCategory = handleAddCategory;
+window.handleEditCategory = handleEditCategory;
+window.handleDeleteCategory = handleDeleteCategory;
+window.showAddCategoryModal = showAddCategoryModal;
+window.closeAddCategoryModal = closeAddCategoryModal;
+window.showManageCategories = showManageCategories;
+window.closeManageCategoriesModal = closeManageCategoriesModal;
+window.handleSaveProfile = handleSaveProfile;
+window.handleChangeCurrency = handleChangeCurrency;
+window.handleLogout = handleLogout;
+window.handleSwitchAccount = handleSwitchAccount;
+window.handleDeleteAccount = handleDeleteAccount;
+window.refreshAllData = refreshAllData;
+window.formatCurrency = formatCurrency;
+window.getCurrencySymbol = getCurrencySymbol;
+window.formatDate = formatDate;
+
+// ===================================================================
+// 25. START APPLICATION
+// ===================================================================
+
+// Start the application when DOM is ready
+document.addEventListener('DOMContentLoaded', initializeApp);
+
+// Handle page visibility change (refresh data when tab becomes visible)
+document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+        refreshAllData();
+    }
+});
+
+// Handle online/offline events
+window.addEventListener('online', function() {
+    showNotification('Back online! Refreshing data...', 'info');
+    refreshAllData();
+});
+
+window.addEventListener('offline', function() {
+    showNotification('You are offline. Some features may not work.', 'error');
+});
+
+console.log('✅ FinFlow JavaScript loaded successfully');
+console.log(`📦 Version: ${CONFIG.VERSION}`);
+console.log(`🔗 API: ${CONFIG.API_URL}`);
+console.log(`🌓 Theme: ${AppState.theme}`);
+console.log(`💰 Currency: ${AppState.currency}`);
+
+// ===================================================================
+// END OF JAVASCRIPT
+// ===================================================================
