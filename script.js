@@ -19,7 +19,7 @@ let customCategories = [];
 // Editing state variables
 let editingExpenseId = null;
 let editingCategoryIndex = -1;
-let editingSplitExpenseId = null;
+let editingSplitExpenseId = null; // Added for split expense editing
 
 // Currency symbols
 const CURRENCY_SYMBOLS = {
@@ -101,6 +101,7 @@ async function loadUserData() {
         }
     } catch (error) {
         console.error('Error loading user data:', error);
+        // Redirect to login if token is invalid
         if (error.message.includes('Token') || error.message.includes('authorization')) {
             window.location.href = 'login.html';
         }
@@ -112,7 +113,7 @@ async function loadExpensesFromAPI() {
     try {
         const data = await apiRequest('/expenses');
         if (data.success) {
-            expenses = data.expenses || [];
+            expenses = data.expenses;
         }
     } catch (error) {
         console.error('Error loading expenses:', error);
@@ -124,7 +125,7 @@ async function loadRecurringExpensesFromAPI() {
     try {
         const data = await apiRequest('/recurring');
         if (data.success) {
-            recurringExpenses = data.recurringExpenses || [];
+            recurringExpenses = data.recurringExpenses;
         }
     } catch (error) {
         console.error('Error loading recurring expenses:', error);
@@ -136,7 +137,7 @@ async function loadBillRemindersFromAPI() {
     try {
         const data = await apiRequest('/bills');
         if (data.success) {
-            billReminders = data.bills || [];
+            billReminders = data.bills;
         }
     } catch (error) {
         console.error('Error loading bill reminders:', error);
@@ -148,8 +149,7 @@ async function loadSplitExpensesFromAPI() {
     try {
         const data = await apiRequest('/split');
         if (data.success) {
-            splitExpenses = data.splitExpenses || [];
-            console.log('Split expenses loaded:', splitExpenses);
+            splitExpenses = data.splitExpenses;
         }
     } catch (error) {
         console.error('Error loading split expenses:', error);
@@ -161,7 +161,7 @@ async function loadCategoriesFromAPI() {
     try {
         const data = await apiRequest('/categories');
         if (data.success) {
-            customCategories = data.categories || [];
+            customCategories = data.categories;
         }
     } catch (error) {
         console.error('Error loading categories:', error);
@@ -175,13 +175,16 @@ async function loadCategoriesFromAPI() {
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('Expense Tracker Initialized');
     
+    // Check if user is authenticated
     if (!authToken) {
         window.location.href = 'login.html';
         return;
     }
     
+    // Apply theme
     applyTheme();
     
+    // Set current date
     const now = new Date();
     document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', {
         weekday: 'long', 
@@ -190,24 +193,30 @@ document.addEventListener('DOMContentLoaded', async function() {
         day: 'numeric'
     });
     
+    // Set expense date to today
     document.getElementById('expenseDate').valueAsDate = now;
     
+    // Load user data first
     const userLoaded = await loadUserData();
     if (!userLoaded) {
         return;
     }
     
+    // Initialize currency
     document.getElementById('currencySelector').value = userCurrency;
     updateCurrencyDisplay();
     
+    // Update user display
     if (currentUser) {
         document.getElementById('username').innerHTML = `Welcome back, <span class="text-primary">${currentUser.name}</span>`;
         document.getElementById('totalIncome').textContent = formatCurrency(monthlyIncome);
     }
     
+    // Initialize categories
     await loadCategoriesFromAPI();
     initializeCategories();
     
+    // Load all data from API
     await Promise.all([
         loadExpensesFromAPI(),
         loadRecurringExpensesFromAPI(),
@@ -215,9 +224,16 @@ document.addEventListener('DOMContentLoaded', async function() {
         loadSplitExpensesFromAPI()
     ]);
     
+    // Load initial data
     updateAllDisplays();
+    
+    // Initialize analytics
     loadAnalytics();
+    
+    // Initialize filters
     initializeFilters();
+    
+    // Add event listeners for category dropdowns
     setupCategoryDropdownListeners();
     
     console.log('All functions loaded successfully');
@@ -251,15 +267,18 @@ function setupCategoryDropdownListeners() {
    BASIC UI FUNCTIONS
 ====================== */
 function showSection(id) {
+    // Hide all sections
     document.querySelectorAll('main > section').forEach(section => {
         section.classList.add('hidden');
     });
     
+    // Show selected section
     const section = document.getElementById(id);
     if (section) {
         section.classList.remove('hidden');
     }
     
+    // Update active button
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.remove('active');
     });
@@ -278,10 +297,7 @@ function showSection(id) {
         navButtons[btnIndex].classList.add('active');
     }
     
-    if (window.innerWidth <= 768) {
-        toggleMobileMenu();
-    }
-    
+    // Load data for the section
     switch(id) {
         case 'dashboard':
             loadExpenses();
@@ -373,6 +389,7 @@ function toggleProfile() {
         document.getElementById('profileIncome').value = currentUser.monthlyIncome || '';
         document.getElementById('profileCurrency').value = currentUser.currency || 'INR';
         
+        // Show email
         const emailDisplay = document.getElementById('profileEmail');
         if (emailDisplay) {
             emailDisplay.textContent = currentUser.email || '';
@@ -467,6 +484,7 @@ async function addExpense() {
             paymentMethod: 'cash'
         };
 
+        // Check if we're updating an existing expense
         if (editingExpenseId) {
             const data = await apiRequest(`/expenses/${editingExpenseId}`, {
                 method: 'PUT',
@@ -492,11 +510,13 @@ async function addExpense() {
             }
         }
         
+        // Reset form
         document.getElementById('title').value = '';
         document.getElementById('amount').value = '';
         document.getElementById('category').value = '';
         document.getElementById('expenseDate').valueAsDate = new Date();
         
+        // Reset button
         const addButton = document.querySelector('.btn-add');
         addButton.innerHTML = '<i class="fas fa-plus-circle"></i> Add Expense';
         addButton.onclick = addExpense;
@@ -513,6 +533,7 @@ function loadExpenses() {
     const container = document.getElementById('expenseList');
     if (!container) return;
 
+    // Calculate total
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
@@ -527,6 +548,7 @@ function loadExpenses() {
         return e.type === 'income' ? sum + e.amount : sum - e.amount;
     }, 0);
     
+    // Update total display
     const expenseTotalEl = document.getElementById('expenseTotal');
     if (expenseTotalEl) {
         expenseTotalEl.innerHTML = `${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(Math.abs(total))}`;
@@ -606,19 +628,24 @@ function editExpense(id) {
         return;
     }
 
+    // Fill form with expense data
     document.getElementById('title').value = expense.description;
     document.getElementById('amount').value = expense.amount;
     document.getElementById('category').value = expense.category;
     
+    // Format date properly
     const date = new Date(expense.date);
     const formattedDate = date.toISOString().split('T')[0];
     document.getElementById('expenseDate').value = formattedDate;
     
+    // Change button to update mode
     const addButton = document.querySelector('.btn-add');
     addButton.innerHTML = '<i class="fas fa-save"></i> Update Expense';
     
+    // Set editing expense ID
     editingExpenseId = id;
     
+    // Scroll to form
     showSection('expenses');
     document.querySelector('.add-expense-card').scrollIntoView({ behavior: 'smooth' });
     
@@ -653,6 +680,7 @@ function updateDashboard() {
     const savings = actualIncome - totalExpenses;
     const savingsRate = actualIncome > 0 ? ((savings / actualIncome) * 100) : 0;
 
+    // Update dashboard stats with correct IDs
     const totalExpenseEl = document.getElementById('totalExpense');
     const balanceEl = document.getElementById('balance');
     const savingsRateEl = document.getElementById('savingsRate');
@@ -702,7 +730,10 @@ function updateRecentTransactions() {
 
 function updateCategoryBreakdown() {
     const container = document.getElementById('categoryBreakdown');
-    if (!container) return;
+    if (!container) {
+        console.log('categoryBreakdown container not found - skipping');
+        return;
+    }
 
     const now = new Date();
     const currentMonth = now.getMonth();
@@ -758,7 +789,10 @@ function updateCategoryBreakdown() {
 
 function updateUpcomingBills() {
     const container = document.getElementById('upcomingBills');
-    if (!container) return;
+    if (!container) {
+        console.log('upcomingBills container not found - skipping');
+        return;
+    }
 
     const now = new Date();
     const upcoming = billReminders
@@ -852,6 +886,7 @@ function updateTrendChart() {
         trendChart.destroy();
     }
 
+    // Get last 6 months data
     const last6Months = [];
     const now = new Date();
     for (let i = 5; i >= 0; i--) {
@@ -863,6 +898,7 @@ function updateTrendChart() {
         const month = date.getMonth();
         const year = date.getFullYear();
         
+        // Calculate expenses for the month
         const monthExpenses = expenses.filter(e => {
             const expenseDate = new Date(e.date);
             return e.type === 'expense' &&
@@ -870,6 +906,7 @@ function updateTrendChart() {
                    expenseDate.getFullYear() === year;
         }).reduce((sum, e) => sum + e.amount, 0);
 
+        // Calculate income for the month
         const monthIncome = expenses.filter(e => {
             const expenseDate = new Date(e.date);
             return e.type === 'income' &&
@@ -877,6 +914,7 @@ function updateTrendChart() {
                    expenseDate.getFullYear() === year;
         }).reduce((sum, e) => sum + e.amount, 0);
 
+        // Use actual income from transactions or user's monthly income
         const actualIncome = monthIncome > 0 ? monthIncome : (month === now.getMonth() && year === now.getFullYear() ? monthlyIncome : monthlyIncome);
         const savings = Math.max(0, actualIncome - monthExpenses);
 
@@ -947,7 +985,10 @@ function updateTrendChart() {
 
 function updateIncomeExpenseSavingsChart() {
     const canvas = document.getElementById('incomeExpenseChart');
-    if (!canvas) return;
+    if (!canvas) {
+        console.log('incomeExpenseChart canvas not found');
+        return;
+    }
 
     const ctx = canvas.getContext('2d');
     
@@ -1181,7 +1222,10 @@ function updateCategoryChart() {
 
 function updateDetailedCategoryBreakdown() {
     const canvas = document.getElementById('detailedCategoryChart');
-    if (!canvas) return;
+    if (!canvas) {
+        console.log('detailedCategoryChart canvas not found');
+        return;
+    }
 
     const ctx = canvas.getContext('2d');
     
@@ -1214,7 +1258,7 @@ function updateDetailedCategoryBreakdown() {
 
     const sortedCategories = Object.entries(categoryData)
         .sort((a, b) => b[1].total - a[1].total)
-        .slice(0, 8);
+        .slice(0, 8); // Top 8 categories
 
     if (sortedCategories.length === 0) {
         detailedCategoryChart = new Chart(ctx, {
@@ -1373,6 +1417,7 @@ async function saveNewCategory() {
         const categoryData = { name, icon, color };
 
         if (editingCategoryIndex >= 0) {
+            // Update existing category
             const categoryId = customCategories[editingCategoryIndex]._id;
             const data = await apiRequest(`/categories/${categoryId}`, {
                 method: 'PUT',
@@ -1384,6 +1429,7 @@ async function saveNewCategory() {
                 showNotification(data.message, 'success');
             }
         } else {
+            // Create new category
             const data = await apiRequest('/categories', {
                 method: 'POST',
                 body: JSON.stringify(categoryData)
@@ -1538,6 +1584,7 @@ async function addRecurringExpense() {
         if (data.success) {
             recurringExpenses.push(data.recurringExpense);
             
+            // Reset form
             document.getElementById('recurringTitle').value = '';
             document.getElementById('recurringAmount').value = '';
             document.getElementById('recurringCategory').value = '';
@@ -1554,13 +1601,17 @@ async function addRecurringExpense() {
     }
 }
 
+// Alias for HTML compatibility
 async function saveRecurringExpense() {
     await addRecurringExpense();
 }
 
 function updateRecurringExpensesDisplay() {
     const container = document.getElementById('recurringGrid');
-    if (!container) return;
+    if (!container) {
+        console.log('recurringGrid container not found');
+        return;
+    }
 
     if (recurringExpenses.length === 0) {
         container.innerHTML = '<div class="empty-state">No recurring expenses added yet</div>';
@@ -1573,6 +1624,7 @@ function updateRecurringExpensesDisplay() {
         const now = new Date();
         const daysUntil = Math.ceil((nextDue - now) / (1000 * 60 * 60 * 24));
         
+        // Calculate next due date
         let frequencyText = '';
         let nextDueDate = new Date(nextDue);
         
@@ -1587,6 +1639,7 @@ function updateRecurringExpensesDisplay() {
             frequencyText = 'YEARLY';
         }
         
+        // Show "Deactivated" instead of due date if not active
         const statusText = expense.isActive ? 
             `Due in ${daysUntil > 0 ? daysUntil : 0} days` : 
             'Deactivated';
@@ -1714,6 +1767,7 @@ async function addBillReminder() {
         if (data.success) {
             billReminders.push(data.bill);
             
+            // Reset form
             document.getElementById('billTitle').value = '';
             document.getElementById('billAmount').value = '';
             document.getElementById('billCategory').value = '';
@@ -1730,13 +1784,17 @@ async function addBillReminder() {
     }
 }
 
+// Alias for HTML compatibility
 async function saveBillReminder() {
     await addBillReminder();
 }
 
 function updateBillRemindersDisplay() {
     const container = document.getElementById('remindersContainer');
-    if (!container) return;
+    if (!container) {
+        console.log('remindersContainer not found');
+        return;
+    }
 
     if (billReminders.length === 0) {
         container.innerHTML = '<div class="empty-state">No bill reminders added yet</div>';
@@ -1843,12 +1901,20 @@ function updateBillCalendar() {
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
     
+    // Get first day of month
     const firstDay = new Date(currentYear, currentMonth, 1);
     const lastDay = new Date(currentYear, currentMonth + 1, 0);
+    
+    // Get days in month
     const daysInMonth = lastDay.getDate();
+    
+    // Get day of week for first day (0 = Sunday, 6 = Saturday)
     const firstDayIndex = firstDay.getDay();
+    
+    // Get month name
     const monthName = firstDay.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     
+    // Update the calendar section title
     const calendarTitle = document.querySelector('.calendar-section h3');
     if (calendarTitle) {
         calendarTitle.textContent = `Bill Calendar - ${monthName}`;
@@ -1856,16 +1922,23 @@ function updateBillCalendar() {
     
     let html = '';
     
+    // Add day headers
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     dayNames.forEach(day => {
         html += `<div class="calendar-day-header">${day}</div>`;
     });
     
+    // Add empty cells for days before first day of month
     for (let i = 0; i < firstDayIndex; i++) {
         html += '<div class="calendar-day empty"></div>';
     }
     
+    // Add days of month
     for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dateObj = new Date(currentYear, currentMonth, day);
+        
+        // Check if any bills are due on this day
         const billsOnDay = billReminders.filter(bill => {
             const billDate = new Date(bill.dueDate);
             return !bill.isPaid && 
@@ -1877,6 +1950,7 @@ function updateBillCalendar() {
         const isToday = day === now.getDate() && currentMonth === now.getMonth() && currentYear === now.getFullYear();
         const hasBill = billsOnDay.length > 0;
         
+        // Create tooltip for bills on this day
         let tooltip = '';
         if (hasBill) {
             const billNames = billsOnDay.map(bill => bill.billName).join(', ');
@@ -1897,6 +1971,7 @@ function updateBillCalendar() {
     
     container.innerHTML = html;
     
+    // Add click handler to bill days
     const billDays = container.querySelectorAll('.calendar-day.has-bill');
     billDays.forEach(day => {
         day.addEventListener('click', function() {
@@ -1921,11 +1996,12 @@ function updateBillCalendar() {
 }
 
 /* ======================
-   SPLIT EXPENSES (COMPLETE FIXED VERSION)
+   SPLIT EXPENSES
 ====================== */
 function showSplitExpenseModal() {
     const modal = document.getElementById('splitExpenseModal');
     if (modal) modal.classList.remove('hidden');
+    // Initialize split calculation
     updateSplitCalculation();
 }
 
@@ -1933,14 +2009,17 @@ function closeSplitExpenseModal() {
     const modal = document.getElementById('splitExpenseModal');
     if (modal) modal.classList.add('hidden');
     
+    // Reset editing state
     editingSplitExpenseId = null;
     
+    // Reset form
     document.getElementById('splitTitle').value = '';
     document.getElementById('splitTotalAmount').value = '';
     document.getElementById('splitCategory').value = '';
     document.getElementById('numPeople').value = '1';
     document.getElementById('splitMethod').value = 'equal';
     
+    // Reset button text
     const saveButton = document.querySelector('#splitExpenseModal .btn-primary');
     if (saveButton) {
         saveButton.innerHTML = '<i class="fas fa-save"></i> Save Split Expense';
@@ -2042,6 +2121,7 @@ function updateSplitCalculation() {
         summaryContainer.innerHTML = summary;
     }
     
+    // Update calculations
     if (splitMethod === 'percentage') {
         updatePercentageSplit();
     } else if (splitMethod === 'custom') {
@@ -2058,6 +2138,7 @@ function updatePercentageSplit() {
         totalPercentage += parseFloat(input.value) || 0;
     });
     
+    // Update amounts
     percentageInputs.forEach(input => {
         const percentage = parseFloat(input.value) || 0;
         const amount = (totalAmount * percentage) / 100;
@@ -2068,6 +2149,7 @@ function updatePercentageSplit() {
         }
     });
     
+    // Update summary
     const summaryContainer = document.getElementById('splitSummary');
     if (summaryContainer) {
         summaryContainer.innerHTML = `
@@ -2094,6 +2176,7 @@ function updateCustomSplit() {
         totalEntered += parseFloat(input.value) || 0;
     });
     
+    // Update summary
     const summaryContainer = document.getElementById('splitSummary');
     if (summaryContainer) {
         const difference = totalAmount - totalEntered;
@@ -2126,6 +2209,7 @@ async function saveSplitExpense() {
         return;
     }
 
+    // Calculate amounts based on split method
     const members = [];
     
     if (splitMethod === 'equal') {
@@ -2134,7 +2218,7 @@ async function saveSplitExpense() {
             members.push({
                 name: i === 0 ? 'You' : `Person ${i + 1}`,
                 amount: perPerson,
-                isPaid: i === 0
+                isPaid: i === 0 // You are marked as paid by default
             });
         }
     } else if (splitMethod === 'percentage') {
@@ -2192,7 +2276,9 @@ async function saveSplitExpense() {
 
         let data;
         
+        // Check if we're updating or creating
         if (editingSplitExpenseId) {
+            // Update existing split expense
             data = await apiRequest(`/split/${editingSplitExpenseId}`, {
                 method: 'PUT',
                 body: JSON.stringify(splitData)
@@ -2206,6 +2292,7 @@ async function saveSplitExpense() {
                 showNotification('Split expense updated successfully', 'success');
             }
         } else {
+            // Create new split expense
             data = await apiRequest('/split', {
                 method: 'POST',
                 body: JSON.stringify(splitData)
@@ -2218,14 +2305,17 @@ async function saveSplitExpense() {
         }
 
         if (data.success) {
+            // Reset form
             document.getElementById('splitTitle').value = '';
             document.getElementById('splitTotalAmount').value = '';
             document.getElementById('splitCategory').value = '';
             document.getElementById('numPeople').value = '1';
             document.getElementById('splitMethod').value = 'equal';
             
+            // Reset editing state
             editingSplitExpenseId = null;
             
+            // Reset button text
             const saveButton = document.querySelector('#splitExpenseModal .btn-primary');
             if (saveButton) {
                 saveButton.innerHTML = '<i class="fas fa-save"></i> Save Split Expense';
@@ -2242,26 +2332,28 @@ async function saveSplitExpense() {
 
 function editSplitExpense(id) {
     const expense = splitExpenses.find(e => e._id === id);
-    if (!expense) {
-        showNotification('Split expense not found', 'error');
-        return;
-    }
+    if (!expense) return;
 
+    // Store the expense ID we're editing
     editingSplitExpenseId = id;
     
+    // Fill the split expense modal with existing data
     document.getElementById('splitTitle').value = expense.title;
     document.getElementById('splitTotalAmount').value = expense.totalAmount;
     document.getElementById('splitCategory').value = expense.category;
     document.getElementById('numPeople').value = expense.members.length;
     document.getElementById('splitMethod').value = expense.splitMethod;
     
+    // Show the modal
     showSplitExpenseModal();
     
+    // Update the form to show existing members
     setTimeout(() => {
         updateSplitCalculation();
         
+        // Pre-fill member amounts based on split method
         if (expense.splitMethod === 'equal') {
-            // Already handled
+            // Already handled by updateSplitCalculation
         } else if (expense.splitMethod === 'percentage') {
             expense.members.forEach((member, index) => {
                 const percentage = (member.amount / expense.totalAmount) * 100;
@@ -2282,6 +2374,7 @@ function editSplitExpense(id) {
         }
     }, 100);
     
+    // Update button text to indicate editing
     const saveButton = document.querySelector('#splitExpenseModal .btn-primary');
     if (saveButton) {
         saveButton.innerHTML = '<i class="fas fa-save"></i> Update Split Expense';
@@ -2307,9 +2400,6 @@ function updateSplitExpensesDisplay() {
         const paidMembers = expense.members.filter(m => m.isPaid).length;
         const totalMembers = expense.members.length;
         const isSettled = paidMembers === totalMembers;
-        
-        const totalPaid = expense.members.filter(m => m.isPaid).reduce((sum, m) => sum + m.amount, 0);
-        const totalAmount = expense.totalAmount;
 
         return `
             <div class="split-card">
@@ -2319,7 +2409,7 @@ function updateSplitExpensesDisplay() {
                         <p class="split-subtitle">Split among ${totalMembers} people • Total: ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(expense.totalAmount)}</p>
                     </div>
                     <span class="split-status ${isSettled ? 'settled' : 'pending'}">
-                        ${isSettled ? '✅ Settled' : '⏳ Pending'}
+                        ${isSettled ? 'Settled' : 'Pending'}
                     </span>
                 </div>
                 
@@ -2330,49 +2420,33 @@ function updateSplitExpensesDisplay() {
                                 <div class="member-info">
                                     <span class="member-name">${member.name}</span>
                                     <span class="member-status ${member.isPaid ? 'paid' : 'unpaid'}">
-                                        ${member.isPaid ? '✅ Paid' : '⏳ Unpaid'}
+                                        ${member.isPaid ? 'Paid' : 'Unpaid'}
                                     </span>
-                                    ${!member.isPaid && !isSettled ? `
-                                        <button class="btn-success btn-sm" onclick="markSplitMemberPaid('${expense._id}', ${index})">
-                                            <i class="fas fa-check"></i> Mark Paid
-                                        </button>
-                                    ` : ''}
-                                    ${member.isPaid && isSettled ? `
-                                        <button class="btn-warning btn-sm" onclick="markSplitMemberUnpaid('${expense._id}', ${index})">
-                                            <i class="fas fa-undo"></i> Mark Unpaid
-                                        </button>
-                                    ` : ''}
                                 </div>
-                                <div class="member-amount">
-                                    ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(member.amount)}
+                                <div class="member-actions">
+                                    <span class="member-amount">${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(member.amount)}</span>
+                                    <button class="${member.isPaid ? 'btn-mark-unpaid' : 'btn-mark-paid'}" 
+                                            onclick="toggleMemberPayment('${expense._id}', ${index})">
+                                        <i class="fas fa-${member.isPaid ? 'times' : 'check'}"></i>
+                                        ${member.isPaid ? 'Mark Unpaid' : 'Mark Paid'}
+                                    </button>
                                 </div>
                             </div>
                         `).join('')}
                     </div>
-                    ${!isSettled ? `
-                        <div class="split-progress">
-                            <div class="progress-bar">
-                                <div class="progress-fill" style="width: ${totalAmount > 0 ? (totalPaid / totalAmount) * 100 : 0}%; background: var(--success);"></div>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-secondary);">
-                                <span>Paid: ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(totalPaid)}</span>
-                                <span>Remaining: ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(totalAmount - totalPaid)}</span>
-                            </div>
-                        </div>
-                    ` : ''}
                 </div>
                 
                 <div class="split-actions">
                     <button class="btn-secondary" onclick="editSplitExpense('${expense._id}')">
                         <i class="fas fa-edit"></i> Edit
                     </button>
-                    ${!isSettled ? `
-                        <button class="btn-success" onclick="settleSplitExpense('${expense._id}')">
-                            <i class="fas fa-check-circle"></i> Settle All
+                    ${isSettled ? `
+                        <button class="btn-unsettle" onclick="unsettleSplitExpense('${expense._id}')">
+                            <i class="fas fa-undo"></i> Unsettle
                         </button>
                     ` : `
-                        <button class="btn-warning" onclick="unsettleSplitExpense('${expense._id}')">
-                            <i class="fas fa-undo"></i> Unsettle
+                        <button class="btn-success" onclick="settleSplitExpense('${expense._id}')">
+                            <i class="fas fa-check"></i> Settle Up
                         </button>
                     `}
                     <button class="btn-danger" onclick="deleteSplitExpense('${expense._id}')">
@@ -2386,8 +2460,7 @@ function updateSplitExpensesDisplay() {
     container.innerHTML = html;
 }
 
-// Mark individual member as paid
-async function markSplitMemberPaid(expenseId, memberIndex) {
+async function toggleMemberPayment(expenseId, memberIndex) {
     try {
         const data = await apiRequest(`/split/${expenseId}/member/${memberIndex}/pay`, {
             method: 'PATCH'
@@ -2398,62 +2471,18 @@ async function markSplitMemberPaid(expenseId, memberIndex) {
             if (index !== -1) {
                 splitExpenses[index] = data.splitExpense;
             }
-            const member = data.splitExpense.members[memberIndex];
-            showNotification(`✅ ${member.name} marked as paid!`, 'success');
+            showNotification(data.message, 'success');
             updateSplitExpensesDisplay();
-        } else {
-            showNotification(data.message || 'Failed to mark member as paid', 'error');
         }
     } catch (error) {
-        console.error('Error marking member paid:', error);
-        showNotification(error.message || 'Failed to mark member as paid', 'error');
+        showNotification('Failed to update member payment status', 'error');
     }
 }
 
-// Mark individual member as unpaid
-async function markSplitMemberUnpaid(expenseId, memberIndex) {
-    try {
-        const data = await apiRequest(`/split/${expenseId}/member/${memberIndex}/pay`, {
-            method: 'PATCH'
-        });
-
-        if (data.success) {
-            const index = splitExpenses.findIndex(e => e._id === expenseId);
-            if (index !== -1) {
-                splitExpenses[index] = data.splitExpense;
-            }
-            const member = data.splitExpense.members[memberIndex];
-            showNotification(`↩️ ${member.name} marked as unpaid`, 'info');
-            updateSplitExpensesDisplay();
-        } else {
-            showNotification(data.message || 'Failed to mark member as unpaid', 'error');
-        }
-    } catch (error) {
-        console.error('Error marking member unpaid:', error);
-        showNotification(error.message || 'Failed to mark member as unpaid', 'error');
-    }
-}
-
-// Settle all members
 async function settleSplitExpense(id) {
-    const expense = splitExpenses.find(e => e._id === id);
-    if (!expense) {
-        showNotification('Split expense not found', 'error');
-        return;
-    }
-
-    const allPaid = expense.members.every(m => m.isPaid);
-    if (allPaid) {
-        showNotification('All members are already paid!', 'info');
-        return;
-    }
-
-    const confirmSettle = confirm(`Are you sure you want to mark ALL members as paid for "${expense.title}"?`);
-    if (!confirmSettle) return;
+    if (!confirm('Mark all members as paid for this split expense?')) return;
 
     try {
-        showNotification('Settling expense...', 'info');
-        
         const data = await apiRequest(`/split/${id}/settle`, {
             method: 'PATCH'
         });
@@ -2463,69 +2492,19 @@ async function settleSplitExpense(id) {
             if (index !== -1) {
                 splitExpenses[index] = data.splitExpense;
             }
-            showNotification('✅ All members settled successfully!', 'success');
+            showNotification(data.message, 'success');
             updateSplitExpensesDisplay();
-        } else {
-            showNotification(data.message || 'Failed to settle expense', 'error');
         }
     } catch (error) {
-        console.error('Error settling expense:', error);
-        // Fallback: mark each member individually
-        try {
-            showNotification('Trying alternative method...', 'info');
-            let settledCount = 0;
-            
-            for (let i = 0; i < expense.members.length; i++) {
-                if (!expense.members[i].isPaid) {
-                    try {
-                        const result = await apiRequest(`/split/${id}/member/${i}/pay`, {
-                            method: 'PATCH'
-                        });
-                        if (result.success) {
-                            settledCount++;
-                            const idx = splitExpenses.findIndex(e => e._id === id);
-                            if (idx !== -1) {
-                                splitExpenses[idx] = result.splitExpense;
-                            }
-                        }
-                    } catch (err) {
-                        console.error('Error marking member:', err);
-                    }
-                }
-            }
-            
-            if (settledCount > 0) {
-                showNotification(`✅ ${settledCount} members settled successfully!`, 'success');
-                updateSplitExpensesDisplay();
-            } else {
-                showNotification('Failed to settle members. Please try again.', 'error');
-            }
-        } catch (fallbackError) {
-            showNotification('Failed to settle expense. Please try again.', 'error');
-        }
+        console.error('Settle error:', error);
+        showNotification('Failed to settle expense', 'error');
     }
 }
 
-// Unsettle all members
 async function unsettleSplitExpense(id) {
-    const expense = splitExpenses.find(e => e._id === id);
-    if (!expense) {
-        showNotification('Split expense not found', 'error');
-        return;
-    }
-
-    const allUnpaid = expense.members.every(m => !m.isPaid);
-    if (allUnpaid) {
-        showNotification('All members are already unpaid!', 'info');
-        return;
-    }
-
-    const confirmUnsettle = confirm(`Are you sure you want to mark ALL members as unpaid for "${expense.title}"?`);
-    if (!confirmUnsettle) return;
+    if (!confirm('Reset all members to unpaid for this split expense?')) return;
 
     try {
-        showNotification('Unsettling expense...', 'info');
-        
         const data = await apiRequest(`/split/${id}/unsettle`, {
             method: 'PATCH'
         });
@@ -2535,51 +2514,17 @@ async function unsettleSplitExpense(id) {
             if (index !== -1) {
                 splitExpenses[index] = data.splitExpense;
             }
-            showNotification('All members marked as unpaid', 'success');
+            showNotification(data.message, 'success');
             updateSplitExpensesDisplay();
-        } else {
-            showNotification(data.message || 'Failed to unsettle expense', 'error');
         }
     } catch (error) {
-        console.error('Error unsettling expense:', error);
-        // Fallback: mark each member individually
-        try {
-            showNotification('Trying alternative method...', 'info');
-            let unsettledCount = 0;
-            
-            for (let i = 0; i < expense.members.length; i++) {
-                if (expense.members[i].isPaid) {
-                    try {
-                        const result = await apiRequest(`/split/${id}/member/${i}/pay`, {
-                            method: 'PATCH'
-                        });
-                        if (result.success) {
-                            unsettledCount++;
-                            const idx = splitExpenses.findIndex(e => e._id === id);
-                            if (idx !== -1) {
-                                splitExpenses[idx] = result.splitExpense;
-                            }
-                        }
-                    } catch (err) {
-                        console.error('Error marking member:', err);
-                    }
-                }
-            }
-            
-            if (unsettledCount > 0) {
-                showNotification(`✅ ${unsettledCount} members unsettled successfully!`, 'success');
-                updateSplitExpensesDisplay();
-            } else {
-                showNotification('Failed to unsettle members. Please try again.', 'error');
-            }
-        } catch (fallbackError) {
-            showNotification('Failed to unsettle expense. Please try again.', 'error');
-        }
+        console.error('Unsettle error:', error);
+        showNotification('Failed to unsettle expense', 'error');
     }
 }
 
 async function deleteSplitExpense(id) {
-    if (!confirm('Are you sure you want to delete this split expense? This action cannot be undone.')) return;
+    if (!confirm('Are you sure you want to delete this split expense?')) return;
     
     try {
         const data = await apiRequest(`/split/${id}`, {
@@ -2588,14 +2533,11 @@ async function deleteSplitExpense(id) {
 
         if (data.success) {
             splitExpenses = splitExpenses.filter(e => e._id !== id);
-            showNotification('Split expense deleted successfully', 'success');
+            showNotification(data.message, 'success');
             updateSplitExpensesDisplay();
-        } else {
-            showNotification(data.message || 'Failed to delete split expense', 'error');
         }
     } catch (error) {
-        console.error('Error deleting split expense:', error);
-        showNotification(error.message || 'Failed to delete split expense', 'error');
+        showNotification('Failed to delete split expense', 'error');
     }
 }
 
@@ -2613,6 +2555,7 @@ function initializeFilters() {
     if (filterStartDate) filterStartDate.addEventListener('change', applyFilters);
     if (filterEndDate) filterEndDate.addEventListener('change', applyFilters);
 
+    // Populate filter category dropdown
     if (filterCategory) {
         const allCategories = getAllCategories();
         filterCategory.innerHTML = `
@@ -2647,6 +2590,7 @@ function downloadChart(chartId) {
     }
 
     try {
+        // Create a link element
         const link = document.createElement('a');
         link.download = `${chartId}-${new Date().toISOString().split('T')[0]}.png`;
         link.href = canvas.toDataURL('image/png');
@@ -2678,6 +2622,7 @@ function showNotification(message, type = 'info') {
 
     const notification = document.createElement('div');
     
+    // Set icon based on type
     let icon = 'info-circle';
     if (type === 'success') icon = 'check-circle';
     else if (type === 'error') icon = 'exclamation-circle';
@@ -2729,41 +2674,1310 @@ function switchAccount() {
     }
 }
 
-/* ================= MOBILE MENU TOGGLE ================= */
-function toggleMobileMenu() {
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('mobileOverlay');
-    
-    if (!sidebar) return;
-    
-    sidebar.classList.toggle('open');
-    
-    if (overlay) {
-        overlay.classList.toggle('active');
-    }
-    
-    document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+// Add notification styles
+const style = document.createElement('style');
+style.textContent = `
+/* Profile modal button alignment */
+.modal-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
 }
 
-// Close mobile menu when clicking a nav link or pressing Escape
-document.addEventListener('DOMContentLoaded', function() {
-    const navButtons = document.querySelectorAll('.nav-btn');
-    navButtons.forEach(btn => {
-        btn.addEventListener('click', function() {
-            if (window.innerWidth <= 768) {
-                setTimeout(toggleMobileMenu, 300);
-            }
-        });
-    });
+.modal-actions .btn-secondary {
+    order: 1;
+}
+
+.modal-actions .btn-primary {
+    order: 2;
+}
+
+/* Analytics grid layout update */
+.analytics-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+}
+
+.analytics-card.full-width {
+    grid-column: 1 / -1;
+    min-height: 400px;
+}
+
+.analytics-card.half-width {
+    min-height: 350px;
+}
+
+/* For larger screens, show two charts side by side */
+@media (min-width: 1024px) {
+    .analytics-grid {
+        grid-template-columns: 1fr 1fr;
+    }
     
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            const sidebar = document.getElementById('sidebar');
-            if (sidebar && sidebar.classList.contains('open')) {
-                toggleMobileMenu();
-            }
-        }
-    });
-});
+    .analytics-card.full-width {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Chart wrapper adjustments for better visibility */
+.chart-wrapper {
+    position: relative;
+    height: 300px;
+    width: 100%;
+}
+
+.analytics-card.full-width .chart-wrapper {
+    height: 350px;
+}
+
+/* Button styles for delete account */
+.btn-danger {
+    background: var(--danger);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    justify-content: center;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.actions-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+/* Profile email display */
+.profile-email {
+    padding: 0.75rem;
+    background: var(--bg-hover);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+/* ================= NOTIFICATION FIXES FOR DARK MODE ================= */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    transform: translateX(120%);
+    transition: transform 0.3s ease;
+    z-index: 10000;
+    min-width: 280px;
+    max-width: 350px;
+    border-left: 4px solid #4361ee;
+    font-size: 0.875rem;
+    background: #ffffff !important;
+    color: #1a1a2e !important;
+    border: 1px solid #d0d0e0 !important;
+    opacity: 1 !important;
+}
+
+.notification.show {
+    transform: translateX(0);
+}
+
+.notification-success {
+    border-left-color: #10b981 !important;
+    background: #d1fae5 !important;
+    color: #065f46 !important;
+}
+
+.notification-success i {
+    color: #10b981 !important;
+}
+
+.notification-error {
+    border-left-color: #ef4444 !important;
+    background: #fee2e2 !important;
+    color: #991b1b !important;
+}
+
+.notification-error i {
+    color: #ef4444 !important;
+}
+
+.notification-info {
+    border-left-color: #3b82f6 !important;
+    background: #dbeafe !important;
+    color: #1e40af !important;
+}
+
+.notification-info i {
+    color: #3b82f6 !important;
+}
+
+/* Dark mode overrides - SOLID backgrounds */
+[data-theme="dark"] .notification {
+    background: #1e293b !important;
+    color: #f1f5f9 !important;
+    border: 1px solid #334155 !important;
+    opacity: 1 !important;
+}
+
+[data-theme="dark"] .notification-success {
+    background: #065f46 !important;
+    color: #d1fae5 !important;
+    border-left-color: #34d399 !important;
+    border: 1px solid #34d399 !important;
+}
+
+[data-theme="dark"] .notification-success i {
+    color: #34d399 !important;
+}
+
+[data-theme="dark"] .notification-error {
+    background: #7f1d1d !important;
+    color: #fecaca !important;
+    border-left-color: #f87171 !important;
+    border: 1px solid #f87171 !important;
+}
+
+[data-theme="dark"] .notification-error i {
+    color: #f87171 !important;
+}
+
+[data-theme="dark"] .notification-info {
+    background: #1e3a5f !important;
+    color: #bfdbfe !important;
+    border-left-color: #60a5fa !important;
+    border: 1px solid #60a5fa !important;
+}
+
+[data-theme="dark"] .notification-info i {
+    color: #60a5fa !important;
+}
+
+[data-theme="dark"] .notification-warning {
+    background: #78350f !important;
+    color: #fef3c7 !important;
+    border-left-color: #fbbf24 !important;
+    border: 1px solid #fbbf24 !important;
+}
+
+[data-theme="dark"] .notification-warning i {
+    color: #fbbf24 !important;
+}
+
+/* Category Management Styles */
+.categories-management {
+    padding: 0.5rem;
+}
+
+.categories-section {
+    margin-bottom: 1.5rem;
+}
+
+.categories-section h4 {
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.categories-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.category-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-hover);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    transition: all 0.2s ease;
+}
+
+.category-item:hover {
+    transform: translateX(4px);
+    background: var(--bg-card);
+    border-color: var(--primary);
+}
+
+.category-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.category-icon {
+    font-size: 1.25rem;
+    width: 40px;
+    text-align: center;
+}
+
+.category-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.category-count {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.category-badge {
+    padding: 0.25rem 0.75rem;
+    background: var(--primary-light);
+    color: var(--primary);
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.category-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.category-actions .btn-icon {
+    padding: 0.375rem;
+    font-size: 0.875rem;
+}
+
+.category-actions .btn-icon.edit {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+}
+
+.category-actions .btn-icon.delete {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.category-actions .btn-icon:hover {
+    transform: scale(1.1);
+}
+
+.add-category-option {
+    color: var(--primary) !important;
+    font-weight: 600 !important;
+    background: var(--bg-hover) !important;
+}
+
+/* Category form styles */
+.category-form .form-group {
+    margin-bottom: 1.5rem;
+}
+
+.category-form select {
+    font-size: 1.1rem;
+    padding: 0.75rem;
+}
+
+.category-form option {
+    font-size: 1rem;
+    padding: 0.5rem;
+}
+
+/* Color picker styling */
+.category-form input[type="color"] {
+    width: 100%;
+    height: 50px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+}
+
+/* Badge styles */
+.badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+}
+
+.badge-success {
+    background: var(--success-light);
+    color: var(--success);
+}
+
+.badge-danger {
+    background: var(--danger-light);
+    color: var(--danger);
+}
+
+.badge-warning {
+    background: var(--warning-light);
+    color: var(--warning);
+}
+
+/* Recurring card styles */
+.recurring-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    border-left: 4px solid var(--primary);
+    box-shadow: var(--shadow-md);
+}
+
+.recurring-card.inactive {
+    border-left-color: var(--text-secondary);
+    opacity: 0.8;
+}
+
+.recurring-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.recurring-header h3 {
+    font-size: 1.25rem;
+    color: var(--text-primary);
+}
+
+.recurring-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.recurring-badge.monthly {
+    background: var(--primary-light);
+    color: var(--primary);
+}
+
+.recurring-badge.yearly {
+    background: var(--warning-light);
+    color: var(--warning);
+}
+
+.recurring-badge.weekly {
+    background: var(--success-light);
+    color: var(--success);
+}
+
+.recurring-content {
+    margin-bottom: 1rem;
+}
+
+.recurring-amount {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.amount-label {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.amount-value {
+    font-weight: 700;
+    font-size: 1.25rem;
+    color: var(--text-primary);
+}
+
+.recurring-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.detail-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+}
+
+.detail-item i {
+    width: 20px;
+    color: var(--primary);
+}
+
+.due-status {
+    padding: 0.5rem;
+    background: var(--bg-hover);
+    border-radius: var(--radius-md);
+    text-align: center;
+    font-weight: 500;
+    color: var(--primary);
+}
+
+.due-status.text-danger {
+    background: var(--danger-light);
+    color: var(--danger);
+}
+
+.recurring-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+/* Bill reminder styles */
+.bill-reminder-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    border-left: 4px solid var(--warning);
+    box-shadow: var(--shadow-md);
+}
+
+.bill-reminder-card.paid {
+    border-left-color: var(--success);
+    opacity: 0.8;
+}
+
+.bill-reminder-card.overdue {
+    border-left-color: var(--danger);
+    animation: pulse 2s infinite;
+}
+
+.bill-reminder-card.upcoming {
+    border-left-color: var(--warning);
+}
+
+.bill-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.bill-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.bill-title h4 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.bill-status {
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.bill-status.paid {
+    background: var(--success-light);
+    color: var(--success);
+}
+
+.bill-status.overdue {
+    background: var(--danger-light);
+    color: var(--danger);
+}
+
+.bill-status.upcoming {
+    background: var(--warning-light);
+    color: var(--warning);
+}
+
+.bill-amount {
+    font-weight: 700;
+    font-size: 1.25rem;
+    color: var(--text-primary);
+}
+
+.bill-details {
+    margin-bottom: 1rem;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.detail-row .label {
+    color: var(--text-secondary);
+}
+
+.detail-row .value {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.bill-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+/* Calendar styles - Full view */
+.calendar-section {
+    margin-top: 2rem;
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-md);
+}
+
+.calendar-section h3 {
+    margin-bottom: 1rem;
+    font-size: 1.25rem;
+    color: var(--text-primary);
+}
+
+.calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.calendar-day-header {
+    text-align: center;
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding: 0.5rem;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+    font-weight: 500;
+    position: relative;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.calendar-day:hover {
+    transform: scale(1.05);
+    box-shadow: var(--shadow-sm);
+}
+
+.calendar-day.today {
+    background: var(--warning);
+    color: white;
+    font-weight: 600;
+}
+
+.calendar-day.has-bill {
+    background: var(--danger-light);
+    color: var(--danger);
+    font-weight: 600;
+    border: 2px solid var(--danger);
+}
+
+.calendar-day.has-bill:hover {
+    background: var(--danger);
+    color: white;
+}
+
+.calendar-day.has-bill .bill-indicator {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    background: var(--danger);
+    border-radius: 50%;
+}
+
+.calendar-day.has-bill:hover .bill-indicator {
+    background: white;
+}
+
+.calendar-day.empty {
+    background: transparent;
+    cursor: default;
+}
+
+.calendar-day.empty:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+/* Split expense styles */
+.split-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+}
+
+.split-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.split-header h3 {
+    font-size: 1.25rem;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.split-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.split-status {
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.split-status.settled {
+    background: var(--success-light);
+    color: var(--success);
+}
+
+.split-status.pending {
+    background: var(--warning-light);
+    color: var(--warning);
+}
+
+.split-details {
+    margin: 1rem 0;
+}
+
+.split-members-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.split-member-detail {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: var(--bg-hover);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+}
+
+.member-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.member-name {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.member-status {
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.member-status.paid {
+    background: var(--success-light);
+    color: var(--success);
+}
+
+.member-status.unpaid {
+    background: var(--warning-light);
+    color: var(--warning);
+}
+
+.member-amount {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.split-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.split-actions .btn-secondary,
+.split-actions .btn-success,
+.split-actions .btn-danger {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+}
+
+/* Split form styles */
+.split-members-section {
+    margin: 1.5rem 0;
+}
+
+.split-members-section h4 {
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.split-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.split-member-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem;
+    background: var(--bg-hover);
+    border-radius: var(--radius-md);
+    margin-bottom: 0.5rem;
+    border: 1px solid var(--border-color);
+}
+
+.member-name {
+    font-weight: 500;
+    color: var(--text-primary);
+    flex: 1;
+}
+
+.member-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 1rem;
+}
+
+.member-input-group input {
+    width: 80px;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    text-align: right;
+}
+
+.member-amount {
+    font-weight: 700;
+    color: var(--text-primary);
+    min-width: 100px;
+    text-align: right;
+}
+
+.split-summary {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    border: 1px solid var(--border-color);
+}
+
+.summary-total,
+.summary-per-person,
+.summary-percentage,
+.summary-entered,
+.summary-difference {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.summary-total {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.summary-total:last-child,
+.summary-per-person:last-child,
+.summary-percentage:last-child,
+.summary-entered:last-child,
+.summary-difference:last-child {
+    border-bottom: none;
+}
+
+/* Calendar Full View Styles */
+.calendar-section {
+    margin-top: 2rem;
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-md);
+    width: 100%;
+}
+
+.calendar-section h3 {
+    margin-bottom: 1rem;
+    font-size: 1.25rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.5rem;
+    margin-top: 1rem;
+    width: 100%;
+}
+
+.calendar-day-header {
+    text-align: center;
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding: 0.5rem;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+    font-weight: 500;
+    position: relative;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.calendar-day:hover {
+    transform: scale(1.05);
+    box-shadow: var(--shadow-sm);
+}
+
+.calendar-day.today {
+    background: var(--warning);
+    color: white;
+    font-weight: 600;
+}
+
+.calendar-day.has-bill {
+    background: var(--primary);
+    color: white;
+    font-weight: 600;
+}
+
+.calendar-day.has-bill .bill-indicator {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    background: var(--danger);
+    border-radius: 50%;
+}
+
+.calendar-day.empty {
+    background: transparent;
+    cursor: default;
+}
+
+.calendar-day.empty:hover {
+    transform: none;
+    box-shadow: none;
+}
+/* ================= ENHANCED CALENDAR STYLES ================= */
+.calendar-section {
+    margin-top: 2rem;
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-md);
+    width: 100%;
+}
+
+.calendar-section h3 {
+    margin-bottom: 1rem;
+    font-size: 1.25rem;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.5rem;
+    margin-top: 1rem;
+    width: 100%;
+}
+
+.calendar-day-header {
+    text-align: center;
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding: 0.5rem;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    background: var(--bg-hover);
+    border-radius: var(--radius-sm);
+}
+
+.calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+    font-weight: 500;
+    position: relative;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    font-size: 0.9rem;
+    border: 1px solid transparent;
+}
+
+.calendar-day:hover {
+    transform: scale(1.05);
+    box-shadow: var(--shadow-sm);
+    border-color: var(--primary);
+}
+
+.calendar-day.today {
+    background: var(--warning);
+    color: white;
+    font-weight: 600;
+    border: 1px solid var(--warning);
+}
+
+.calendar-day.has-bill {
+    background: var(--danger-light);
+    color: var(--danger);
+    font-weight: 600;
+    border: 2px solid var(--danger);
+}
+
+.calendar-day.has-bill:hover {
+    background: var(--danger);
+    color: white;
+}
+
+.calendar-day.has-bill .bill-indicator {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    background: var(--danger);
+    border-radius: 50%;
+}
+
+.calendar-day.has-bill:hover .bill-indicator {
+    background: white;
+}
+
+.calendar-day.empty {
+    background: transparent;
+    cursor: default;
+    border: none;
+}
+
+.calendar-day.empty:hover {
+    transform: none;
+    box-shadow: none;
+    border-color: transparent;
+}
+
+/* Bill count indicator */
+.bill-count {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: var(--danger);
+    color: white;
+    font-size: 0.6rem;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.calendar-day.has-bill:hover .bill-count {
+    background: white;
+    color: var(--danger);
+}
+
+/* Recurring expense deactivated state */
+.recurring-card.inactive {
+    border-left-color: var(--text-secondary);
+    opacity: 0.8;
+}
+
+.recurring-card.inactive .recurring-header h3 {
+    color: var(--text-secondary);
+}
+
+.recurring-card.inactive .recurring-badge {
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+}
+
+.recurring-card.inactive .due-status {
+    background: var(--danger-light);
+    color: var(--danger);
+    font-weight: 600;
+}
+
+/* ================= SPLIT EXPENSE - UNSETTLE BUTTON ================= */
+.btn-unsettle {
+    background: var(--warning);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-unsettle:hover {
+    background: #d97706;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+/* ================= SPLIT EXPENSE - MARK UNPAID BUTTON ================= */
+.btn-mark-unpaid {
+    background: var(--warning);
+    color: white;
+    border: none;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-md);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.btn-mark-unpaid:hover {
+    background: var(--danger);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Mark Paid button (when member is unpaid) */
+.btn-mark-paid {
+    background: var(--success);
+    color: white;
+    border: none;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-md);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.btn-mark-paid:hover {
+    background: #0da271;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Split member detail updated styles */
+.split-member-detail {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: var(--bg-hover);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    transition: all var(--transition-fast);
+}
+
+.split-member-detail:hover {
+    border-color: var(--primary);
+}
+
+.member-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.member-name {
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+}
+
+.member-status {
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-full);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.member-status.paid {
+    background: var(--success-light);
+    color: var(--success);
+}
+
+.member-status.unpaid {
+    background: var(--warning-light);
+    color: var(--warning);
+}
+
+.member-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.member-amount {
+    font-weight: 700;
+    color: var(--text-primary);
+    min-width: 100px;
+    text-align: right;
+    font-size: 0.95rem;
+}
+
+/* Split actions updated */
+.split-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+    flex-wrap: wrap;
+}
+
+.split-actions .btn-secondary,
+.split-actions .btn-success,
+.split-actions .btn-danger,
+.split-actions .btn-unsettle {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Responsive styles for split */
+@media (max-width: 768px) {
+    .split-member-detail {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+
+    .member-info {
+        flex-wrap: wrap;
+        justify-content: space-between;
+    }
+
+    .member-actions {
+        justify-content: flex-end;
+    }
+
+    .member-amount {
+        text-align: left;
+        min-width: auto;
+    }
+
+    .split-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .split-actions .btn-secondary,
+    .split-actions .btn-success,
+    .split-actions .btn-danger,
+    .split-actions .btn-unsettle {
+        justify-content: center;
+        width: 100%;
+    }
+
+    .btn-mark-unpaid,
+    .btn-mark-paid {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.7rem;
+    }
+}
+`;
+
+document.head.appendChild(style);
 
 console.log('Expense Tracker fully loaded!');
