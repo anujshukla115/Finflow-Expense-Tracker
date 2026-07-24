@@ -74,7 +74,7 @@ function toggleMobileSidebar() {
         sidebar.classList.add('open');
         if (overlay) overlay.classList.add('active');
         if (toggleBtn) toggleBtn.classList.add('open');
-        document.body.style.overflow = 'hidden';
+        document.body.style.overflow = '';
     }
 }
 
