@@ -52,6 +52,44 @@ let categoryChart = null;
 let detailedCategoryChart = null;
 
 /* ======================
+   MOBILE SIDEBAR FUNCTIONS
+====================== */
+function toggleMobileSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const toggleBtn = document.getElementById('mobileMenuToggle');
+    
+    if (!sidebar) return;
+    
+    const isOpen = sidebar.classList.contains('open');
+    
+    if (isOpen) {
+        // Close sidebar
+        sidebar.classList.remove('open');
+        if (overlay) overlay.classList.remove('active');
+        if (toggleBtn) toggleBtn.classList.remove('open');
+        document.body.style.overflow = '';
+    } else {
+        // Open sidebar
+        sidebar.classList.add('open');
+        if (overlay) overlay.classList.add('active');
+        if (toggleBtn) toggleBtn.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeMobileSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const toggleBtn = document.getElementById('mobileMenuToggle');
+    
+    if (sidebar) sidebar.classList.remove('open');
+    if (overlay) overlay.classList.remove('active');
+    if (toggleBtn) toggleBtn.classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+/* ======================
    API HELPER FUNCTIONS
 ====================== */
 async function apiRequest(endpoint, options = {}) {
@@ -196,6 +234,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Set expense date to today
     document.getElementById('expenseDate').valueAsDate = now;
     
+    // Setup mobile sidebar event listeners
+    setupMobileSidebarEvents();
+    
     // Load user data first
     const userLoaded = await loadUserData();
     if (!userLoaded) {
@@ -236,8 +277,62 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Add event listeners for category dropdowns
     setupCategoryDropdownListeners();
     
+    // Handle window resize for mobile sidebar
+    window.addEventListener('resize', handleWindowResize);
+    
     console.log('All functions loaded successfully');
 });
+
+/* ======================
+   MOBILE SIDEBAR EVENT SETUP
+====================== */
+function setupMobileSidebarEvents() {
+    // Mobile menu toggle button
+    const toggleBtn = document.getElementById('mobileMenuToggle');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            toggleMobileSidebar();
+        });
+    }
+    
+    // Sidebar overlay - click to close
+    const overlay = document.getElementById('sidebarOverlay');
+    if (overlay) {
+        overlay.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeMobileSidebar();
+            }
+        });
+    }
+    
+    // Close sidebar when a nav link is clicked (mobile only)
+    const navBtns = document.querySelectorAll('.nav-btn');
+    navBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Check if we're on mobile (sidebar has open class)
+            const sidebar = document.querySelector('.sidebar');
+            if (sidebar && sidebar.classList.contains('open')) {
+                // Small delay to allow the section to change first
+                setTimeout(closeMobileSidebar, 150);
+            }
+        });
+    });
+    
+    // Close sidebar on escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeMobileSidebar();
+        }
+    });
+}
+
+function handleWindowResize() {
+    // If window is resized to desktop size, close mobile sidebar
+    if (window.innerWidth > 768) {
+        closeMobileSidebar();
+    }
+}
 
 /* ======================
    SETUP CATEGORY DROPDOWN LISTENERS
@@ -1637,6 +1732,12 @@ function updateRecurringExpensesDisplay() {
         } else if (expense.frequency === 'yearly') {
             nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
             frequencyText = 'YEARLY';
+        } else if (expense.frequency === 'daily') {
+            nextDueDate.setDate(nextDueDate.getDate() + 1);
+            frequencyText = 'DAILY';
+        } else if (expense.frequency === 'quarterly') {
+            nextDueDate.setMonth(nextDueDate.getMonth() + 3);
+            frequencyText = 'QUARTERLY';
         }
         
         // Show "Deactivated" instead of due date if not active
@@ -1952,9 +2053,13 @@ function updateBillCalendar() {
         
         // Create tooltip for bills on this day
         let tooltip = '';
+        let billCountHtml = '';
         if (hasBill) {
             const billNames = billsOnDay.map(bill => bill.billName).join(', ');
             tooltip = `title="${billNames}"`;
+            if (billsOnDay.length > 1) {
+                billCountHtml = `<span class="bill-count">${billsOnDay.length}</span>`;
+            }
         }
         
         let dayClass = 'calendar-day';
@@ -1965,6 +2070,7 @@ function updateBillCalendar() {
             <div class="${dayClass}" ${tooltip}>
                 ${day}
                 ${hasBill ? '<span class="bill-indicator"></span>' : ''}
+                ${billCountHtml}
             </div>
         `;
     }
@@ -2026,6 +2132,10 @@ function closeSplitExpenseModal() {
     }
 }
 
+function changeSplitMethod() {
+    updateSplitCalculation();
+}
+
 function updateSplitCalculation() {
     const totalAmount = parseFloat(document.getElementById('splitTotalAmount').value) || 0;
     const numPeople = parseInt(document.getElementById('numPeople').value) || 1;
@@ -2074,7 +2184,8 @@ function updateSplitCalculation() {
                         ${isYou ? 'You (You)' : `Person ${i + 1}`}
                     </div>
                     <div class="member-input-group">
-                        <input type="number" class="percentage-input" value="${defaultPercentage.toFixed(2)}" min="0" max="100" oninput="updatePercentageSplit()" /> %
+                        <input type="number" class="percentage-input" value="${defaultPercentage.toFixed(2)}" min="0" max="100" oninput="updatePercentageSplit()" />
+                        <span class="percentage-symbol">%</span>
                     </div>
                     <div class="member-amount">
                         ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(amount)}
@@ -2101,6 +2212,9 @@ function updateSplitCalculation() {
                     </div>
                     <div class="member-input-group">
                         <input type="number" class="custom-amount-input" value="${defaultAmount.toFixed(2)}" min="0" oninput="updateCustomSplit()" />
+                    </div>
+                    <div class="member-amount">
+                        ${CURRENCY_SYMBOLS[userCurrency]}${formatCurrency(defaultAmount)}
                     </div>
                 </div>
             `;
@@ -2674,1310 +2788,8 @@ function switchAccount() {
     }
 }
 
-// Add notification styles
-const style = document.createElement('style');
-style.textContent = `
-/* Profile modal button alignment */
-.modal-actions {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 2rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border-color);
-}
-
-.modal-actions .btn-secondary {
-    order: 1;
-}
-
-.modal-actions .btn-primary {
-    order: 2;
-}
-
-/* Analytics grid layout update */
-.analytics-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-}
-
-.analytics-card.full-width {
-    grid-column: 1 / -1;
-    min-height: 400px;
-}
-
-.analytics-card.half-width {
-    min-height: 350px;
-}
-
-/* For larger screens, show two charts side by side */
-@media (min-width: 1024px) {
-    .analytics-grid {
-        grid-template-columns: 1fr 1fr;
-    }
-    
-    .analytics-card.full-width {
-        grid-column: 1 / -1;
-    }
-}
-
-/* Chart wrapper adjustments for better visibility */
-.chart-wrapper {
-    position: relative;
-    height: 300px;
-    width: 100%;
-}
-
-.analytics-card.full-width .chart-wrapper {
-    height: 350px;
-}
-
-/* Button styles for delete account */
-.btn-danger {
-    background: var(--danger);
-    color: white;
-    border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    font-weight: 500;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    justify-content: center;
-}
-
-.btn-danger:hover {
-    background: #dc2626;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-}
-
-.actions-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin-top: 1rem;
-}
-
-/* Profile email display */
-.profile-email {
-    padding: 0.75rem;
-    background: var(--bg-hover);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
-    font-weight: 500;
-    color: var(--text-primary);
-}
-
-/* ================= NOTIFICATION FIXES FOR DARK MODE ================= */
-.notification {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 0.75rem 1.25rem;
-    border-radius: 8px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    transform: translateX(120%);
-    transition: transform 0.3s ease;
-    z-index: 10000;
-    min-width: 280px;
-    max-width: 350px;
-    border-left: 4px solid #4361ee;
-    font-size: 0.875rem;
-    background: #ffffff !important;
-    color: #1a1a2e !important;
-    border: 1px solid #d0d0e0 !important;
-    opacity: 1 !important;
-}
-
-.notification.show {
-    transform: translateX(0);
-}
-
-.notification-success {
-    border-left-color: #10b981 !important;
-    background: #d1fae5 !important;
-    color: #065f46 !important;
-}
-
-.notification-success i {
-    color: #10b981 !important;
-}
-
-.notification-error {
-    border-left-color: #ef4444 !important;
-    background: #fee2e2 !important;
-    color: #991b1b !important;
-}
-
-.notification-error i {
-    color: #ef4444 !important;
-}
-
-.notification-info {
-    border-left-color: #3b82f6 !important;
-    background: #dbeafe !important;
-    color: #1e40af !important;
-}
-
-.notification-info i {
-    color: #3b82f6 !important;
-}
-
-/* Dark mode overrides - SOLID backgrounds */
-[data-theme="dark"] .notification {
-    background: #1e293b !important;
-    color: #f1f5f9 !important;
-    border: 1px solid #334155 !important;
-    opacity: 1 !important;
-}
-
-[data-theme="dark"] .notification-success {
-    background: #065f46 !important;
-    color: #d1fae5 !important;
-    border-left-color: #34d399 !important;
-    border: 1px solid #34d399 !important;
-}
-
-[data-theme="dark"] .notification-success i {
-    color: #34d399 !important;
-}
-
-[data-theme="dark"] .notification-error {
-    background: #7f1d1d !important;
-    color: #fecaca !important;
-    border-left-color: #f87171 !important;
-    border: 1px solid #f87171 !important;
-}
-
-[data-theme="dark"] .notification-error i {
-    color: #f87171 !important;
-}
-
-[data-theme="dark"] .notification-info {
-    background: #1e3a5f !important;
-    color: #bfdbfe !important;
-    border-left-color: #60a5fa !important;
-    border: 1px solid #60a5fa !important;
-}
-
-[data-theme="dark"] .notification-info i {
-    color: #60a5fa !important;
-}
-
-[data-theme="dark"] .notification-warning {
-    background: #78350f !important;
-    color: #fef3c7 !important;
-    border-left-color: #fbbf24 !important;
-    border: 1px solid #fbbf24 !important;
-}
-
-[data-theme="dark"] .notification-warning i {
-    color: #fbbf24 !important;
-}
-
-/* Category Management Styles */
-.categories-management {
-    padding: 0.5rem;
-}
-
-.categories-section {
-    margin-bottom: 1.5rem;
-}
-
-.categories-section h4 {
-    margin-bottom: 1rem;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-}
-
-.categories-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.category-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.75rem 1rem;
-    background: var(--bg-hover);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
-    transition: all 0.2s ease;
-}
-
-.category-item:hover {
-    transform: translateX(4px);
-    background: var(--bg-card);
-    border-color: var(--primary);
-}
-
-.category-info {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-}
-
-.category-icon {
-    font-size: 1.25rem;
-    width: 40px;
-    text-align: center;
-}
-
-.category-name {
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 0.25rem;
-}
-
-.category-count {
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-}
-
-.category-badge {
-    padding: 0.25rem 0.75rem;
-    background: var(--primary-light);
-    color: var(--primary);
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 600;
-}
-
-.category-actions {
-    display: flex;
-    gap: 0.5rem;
-}
-
-.category-actions .btn-icon {
-    padding: 0.375rem;
-    font-size: 0.875rem;
-}
-
-.category-actions .btn-icon.edit {
-    background: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
-}
-
-.category-actions .btn-icon.delete {
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
-}
-
-.category-actions .btn-icon:hover {
-    transform: scale(1.1);
-}
-
-.add-category-option {
-    color: var(--primary) !important;
-    font-weight: 600 !important;
-    background: var(--bg-hover) !important;
-}
-
-/* Category form styles */
-.category-form .form-group {
-    margin-bottom: 1.5rem;
-}
-
-.category-form select {
-    font-size: 1.1rem;
-    padding: 0.75rem;
-}
-
-.category-form option {
-    font-size: 1rem;
-    padding: 0.5rem;
-}
-
-/* Color picker styling */
-.category-form input[type="color"] {
-    width: 100%;
-    height: 50px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
-    cursor: pointer;
-}
-
-/* Badge styles */
-.badge {
-    padding: 0.25rem 0.5rem;
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 500;
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-}
-
-.badge-success {
-    background: var(--success-light);
-    color: var(--success);
-}
-
-.badge-danger {
-    background: var(--danger-light);
-    color: var(--danger);
-}
-
-.badge-warning {
-    background: var(--warning-light);
-    color: var(--warning);
-}
-
-/* Recurring card styles */
-.recurring-card {
-    background: var(--bg-card);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    margin-bottom: 1rem;
-    border-left: 4px solid var(--primary);
-    box-shadow: var(--shadow-md);
-}
-
-.recurring-card.inactive {
-    border-left-color: var(--text-secondary);
-    opacity: 0.8;
-}
-
-.recurring-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-}
-
-.recurring-header h3 {
-    font-size: 1.25rem;
-    color: var(--text-primary);
-}
-
-.recurring-badge {
-    padding: 0.25rem 0.75rem;
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.recurring-badge.monthly {
-    background: var(--primary-light);
-    color: var(--primary);
-}
-
-.recurring-badge.yearly {
-    background: var(--warning-light);
-    color: var(--warning);
-}
-
-.recurring-badge.weekly {
-    background: var(--success-light);
-    color: var(--success);
-}
-
-.recurring-content {
-    margin-bottom: 1rem;
-}
-
-.recurring-amount {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-}
-
-.amount-label {
-    color: var(--text-secondary);
-    font-weight: 500;
-}
-
-.amount-value {
-    font-weight: 700;
-    font-size: 1.25rem;
-    color: var(--text-primary);
-}
-
-.recurring-details {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-}
-
-.detail-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: var(--text-secondary);
-}
-
-.detail-item i {
-    width: 20px;
-    color: var(--primary);
-}
-
-.due-status {
-    padding: 0.5rem;
-    background: var(--bg-hover);
-    border-radius: var(--radius-md);
-    text-align: center;
-    font-weight: 500;
-    color: var(--primary);
-}
-
-.due-status.text-danger {
-    background: var(--danger-light);
-    color: var(--danger);
-}
-
-.recurring-actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-}
-
-/* Bill reminder styles */
-.bill-reminder-card {
-    background: var(--bg-card);
-    border-radius: var(--radius-lg);
-    padding: 1.25rem;
-    margin-bottom: 1rem;
-    border-left: 4px solid var(--warning);
-    box-shadow: var(--shadow-md);
-}
-
-.bill-reminder-card.paid {
-    border-left-color: var(--success);
-    opacity: 0.8;
-}
-
-.bill-reminder-card.overdue {
-    border-left-color: var(--danger);
-    animation: pulse 2s infinite;
-}
-
-.bill-reminder-card.upcoming {
-    border-left-color: var(--warning);
-}
-
-.bill-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-}
-
-.bill-title {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.bill-title h4 {
-    margin: 0;
-    font-size: 1.1rem;
-}
-
-.bill-status {
-    padding: 0.25rem 0.5rem;
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 600;
-}
-
-.bill-status.paid {
-    background: var(--success-light);
-    color: var(--success);
-}
-
-.bill-status.overdue {
-    background: var(--danger-light);
-    color: var(--danger);
-}
-
-.bill-status.upcoming {
-    background: var(--warning-light);
-    color: var(--warning);
-}
-
-.bill-amount {
-    font-weight: 700;
-    font-size: 1.25rem;
-    color: var(--text-primary);
-}
-
-.bill-details {
-    margin-bottom: 1rem;
-}
-
-.detail-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.5rem;
-}
-
-.detail-row .label {
-    color: var(--text-secondary);
-}
-
-.detail-row .value {
-    color: var(--text-primary);
-    font-weight: 500;
-}
-
-.bill-actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-}
-
-/* Calendar styles - Full view */
-.calendar-section {
-    margin-top: 2rem;
-    background: var(--bg-card);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    box-shadow: var(--shadow-md);
-}
-
-.calendar-section h3 {
-    margin-bottom: 1rem;
-    font-size: 1.25rem;
-    color: var(--text-primary);
-}
-
-.calendar {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 0.5rem;
-    margin-top: 1rem;
-}
-
-.calendar-day-header {
-    text-align: center;
-    font-weight: 600;
-    color: var(--text-secondary);
-    padding: 0.5rem;
-    font-size: 0.875rem;
-    text-transform: uppercase;
-}
-
-.calendar-day {
-    aspect-ratio: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-md);
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    font-weight: 500;
-    position: relative;
-    transition: all 0.2s ease;
-    cursor: pointer;
-}
-
-.calendar-day:hover {
-    transform: scale(1.05);
-    box-shadow: var(--shadow-sm);
-}
-
-.calendar-day.today {
-    background: var(--warning);
-    color: white;
-    font-weight: 600;
-}
-
-.calendar-day.has-bill {
-    background: var(--danger-light);
-    color: var(--danger);
-    font-weight: 600;
-    border: 2px solid var(--danger);
-}
-
-.calendar-day.has-bill:hover {
-    background: var(--danger);
-    color: white;
-}
-
-.calendar-day.has-bill .bill-indicator {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 6px;
-    height: 6px;
-    background: var(--danger);
-    border-radius: 50%;
-}
-
-.calendar-day.has-bill:hover .bill-indicator {
-    background: white;
-}
-
-.calendar-day.empty {
-    background: transparent;
-    cursor: default;
-}
-
-.calendar-day.empty:hover {
-    transform: none;
-    box-shadow: none;
-}
-
-/* Split expense styles */
-.split-card {
-    background: var(--bg-card);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    margin-bottom: 1rem;
-    box-shadow: var(--shadow-md);
-    border: 1px solid var(--border-color);
-}
-
-.split-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 1rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.split-header h3 {
-    font-size: 1.25rem;
-    color: var(--text-primary);
-    margin-bottom: 0.25rem;
-}
-
-.split-subtitle {
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-}
-
-.split-status {
-    padding: 0.25rem 0.75rem;
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.split-status.settled {
-    background: var(--success-light);
-    color: var(--success);
-}
-
-.split-status.pending {
-    background: var(--warning-light);
-    color: var(--warning);
-}
-
-.split-details {
-    margin: 1rem 0;
-}
-
-.split-members-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.split-member-detail {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem;
-    background: var(--bg-hover);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
-}
-
-.member-info {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.member-name {
-    font-weight: 500;
-    color: var(--text-primary);
-}
-
-.member-status {
-    padding: 0.125rem 0.5rem;
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-
-.member-status.paid {
-    background: var(--success-light);
-    color: var(--success);
-}
-
-.member-status.unpaid {
-    background: var(--warning-light);
-    color: var(--warning);
-}
-
-.member-amount {
-    font-weight: 700;
-    color: var(--text-primary);
-}
-
-.split-actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border-color);
-}
-
-.split-actions .btn-secondary,
-.split-actions .btn-success,
-.split-actions .btn-danger {
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
-}
-
-/* Split form styles */
-.split-members-section {
-    margin: 1.5rem 0;
-}
-
-.split-members-section h4 {
-    margin-bottom: 1rem;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.split-inputs {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin-bottom: 1rem;
-}
-
-.split-member-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.75rem;
-    background: var(--bg-hover);
-    border-radius: var(--radius-md);
-    margin-bottom: 0.5rem;
-    border: 1px solid var(--border-color);
-}
-
-.member-name {
-    font-weight: 500;
-    color: var(--text-primary);
-    flex: 1;
-}
-
-.member-input-group {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0 1rem;
-}
-
-.member-input-group input {
-    width: 80px;
-    padding: 0.5rem;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    background: var(--bg-card);
-    color: var(--text-primary);
-    text-align: right;
-}
-
-.member-amount {
-    font-weight: 700;
-    color: var(--text-primary);
-    min-width: 100px;
-    text-align: right;
-}
-
-.split-summary {
-    background: var(--bg-card);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    margin: 1.5rem 0;
-    border: 1px solid var(--border-color);
-}
-
-.summary-total,
-.summary-per-person,
-.summary-percentage,
-.summary-entered,
-.summary-difference {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--border-light);
-}
-
-.summary-total {
-    font-size: 1.25rem;
-    font-weight: 700;
-}
-
-.summary-total:last-child,
-.summary-per-person:last-child,
-.summary-percentage:last-child,
-.summary-entered:last-child,
-.summary-difference:last-child {
-    border-bottom: none;
-}
-
-/* Calendar Full View Styles */
-.calendar-section {
-    margin-top: 2rem;
-    background: var(--bg-card);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    box-shadow: var(--shadow-md);
-    width: 100%;
-}
-
-.calendar-section h3 {
-    margin-bottom: 1rem;
-    font-size: 1.25rem;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.calendar {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 0.5rem;
-    margin-top: 1rem;
-    width: 100%;
-}
-
-.calendar-day-header {
-    text-align: center;
-    font-weight: 600;
-    color: var(--text-secondary);
-    padding: 0.5rem;
-    font-size: 0.875rem;
-    text-transform: uppercase;
-}
-
-.calendar-day {
-    aspect-ratio: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-md);
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    font-weight: 500;
-    position: relative;
-    transition: all 0.2s ease;
-    cursor: pointer;
-    font-size: 0.9rem;
-}
-
-.calendar-day:hover {
-    transform: scale(1.05);
-    box-shadow: var(--shadow-sm);
-}
-
-.calendar-day.today {
-    background: var(--warning);
-    color: white;
-    font-weight: 600;
-}
-
-.calendar-day.has-bill {
-    background: var(--primary);
-    color: white;
-    font-weight: 600;
-}
-
-.calendar-day.has-bill .bill-indicator {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 6px;
-    height: 6px;
-    background: var(--danger);
-    border-radius: 50%;
-}
-
-.calendar-day.empty {
-    background: transparent;
-    cursor: default;
-}
-
-.calendar-day.empty:hover {
-    transform: none;
-    box-shadow: none;
-}
-/* ================= ENHANCED CALENDAR STYLES ================= */
-.calendar-section {
-    margin-top: 2rem;
-    background: var(--bg-card);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    box-shadow: var(--shadow-md);
-    width: 100%;
-}
-
-.calendar-section h3 {
-    margin-bottom: 1rem;
-    font-size: 1.25rem;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.calendar {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 0.5rem;
-    margin-top: 1rem;
-    width: 100%;
-}
-
-.calendar-day-header {
-    text-align: center;
-    font-weight: 600;
-    color: var(--text-secondary);
-    padding: 0.5rem;
-    font-size: 0.875rem;
-    text-transform: uppercase;
-    background: var(--bg-hover);
-    border-radius: var(--radius-sm);
-}
-
-.calendar-day {
-    aspect-ratio: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-md);
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-    font-weight: 500;
-    position: relative;
-    transition: all 0.2s ease;
-    cursor: pointer;
-    font-size: 0.9rem;
-    border: 1px solid transparent;
-}
-
-.calendar-day:hover {
-    transform: scale(1.05);
-    box-shadow: var(--shadow-sm);
-    border-color: var(--primary);
-}
-
-.calendar-day.today {
-    background: var(--warning);
-    color: white;
-    font-weight: 600;
-    border: 1px solid var(--warning);
-}
-
-.calendar-day.has-bill {
-    background: var(--danger-light);
-    color: var(--danger);
-    font-weight: 600;
-    border: 2px solid var(--danger);
-}
-
-.calendar-day.has-bill:hover {
-    background: var(--danger);
-    color: white;
-}
-
-.calendar-day.has-bill .bill-indicator {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 6px;
-    height: 6px;
-    background: var(--danger);
-    border-radius: 50%;
-}
-
-.calendar-day.has-bill:hover .bill-indicator {
-    background: white;
-}
-
-.calendar-day.empty {
-    background: transparent;
-    cursor: default;
-    border: none;
-}
-
-.calendar-day.empty:hover {
-    transform: none;
-    box-shadow: none;
-    border-color: transparent;
-}
-
-/* Bill count indicator */
-.bill-count {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    background: var(--danger);
-    color: white;
-    font-size: 0.6rem;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-}
-
-.calendar-day.has-bill:hover .bill-count {
-    background: white;
-    color: var(--danger);
-}
-
-/* Recurring expense deactivated state */
-.recurring-card.inactive {
-    border-left-color: var(--text-secondary);
-    opacity: 0.8;
-}
-
-.recurring-card.inactive .recurring-header h3 {
-    color: var(--text-secondary);
-}
-
-.recurring-card.inactive .recurring-badge {
-    background: var(--bg-hover);
-    color: var(--text-secondary);
-}
-
-.recurring-card.inactive .due-status {
-    background: var(--danger-light);
-    color: var(--danger);
-    font-weight: 600;
-}
-
-/* ================= SPLIT EXPENSE - UNSETTLE BUTTON ================= */
-.btn-unsettle {
-    background: var(--warning);
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: var(--radius-md);
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--transition-fast);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.btn-unsettle:hover {
-    background: #d97706;
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-sm);
-}
-
-/* ================= SPLIT EXPENSE - MARK UNPAID BUTTON ================= */
-.btn-mark-unpaid {
-    background: var(--warning);
-    color: white;
-    border: none;
-    padding: 0.25rem 0.75rem;
-    border-radius: var(--radius-md);
-    font-size: 0.75rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--transition-fast);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.btn-mark-unpaid:hover {
-    background: var(--danger);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-sm);
-}
-
-/* Mark Paid button (when member is unpaid) */
-.btn-mark-paid {
-    background: var(--success);
-    color: white;
-    border: none;
-    padding: 0.25rem 0.75rem;
-    border-radius: var(--radius-md);
-    font-size: 0.75rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--transition-fast);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.btn-mark-paid:hover {
-    background: #0da271;
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-sm);
-}
-
-/* Split member detail updated styles */
-.split-member-detail {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem 1rem;
-    background: var(--bg-hover);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
-    transition: all var(--transition-fast);
-}
-
-.split-member-detail:hover {
-    border-color: var(--primary);
-}
-
-.member-info {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-}
-
-.member-name {
-    font-weight: 500;
-    color: var(--text-primary);
-    font-size: 0.95rem;
-}
-
-.member-status {
-    padding: 0.125rem 0.5rem;
-    border-radius: var(--radius-full);
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.member-status.paid {
-    background: var(--success-light);
-    color: var(--success);
-}
-
-.member-status.unpaid {
-    background: var(--warning-light);
-    color: var(--warning);
-}
-
-.member-actions {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.member-amount {
-    font-weight: 700;
-    color: var(--text-primary);
-    min-width: 100px;
-    text-align: right;
-    font-size: 0.95rem;
-}
-
-/* Split actions updated */
-.split-actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border-color);
-    flex-wrap: wrap;
-}
-
-.split-actions .btn-secondary,
-.split-actions .btn-success,
-.split-actions .btn-danger,
-.split-actions .btn-unsettle {
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-/* Responsive styles for split */
-@media (max-width: 768px) {
-    .split-member-detail {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.5rem;
-    }
-
-    .member-info {
-        flex-wrap: wrap;
-        justify-content: space-between;
-    }
-
-    .member-actions {
-        justify-content: flex-end;
-    }
-
-    .member-amount {
-        text-align: left;
-        min-width: auto;
-    }
-
-    .split-actions {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .split-actions .btn-secondary,
-    .split-actions .btn-success,
-    .split-actions .btn-danger,
-    .split-actions .btn-unsettle {
-        justify-content: center;
-        width: 100%;
-    }
-
-    .btn-mark-unpaid,
-    .btn-mark-paid {
-        padding: 0.375rem 0.75rem;
-        font-size: 0.7rem;
-    }
-}
-`;
-
-document.head.appendChild(style);
+// ==================== ADD NOTIFICATION STYLES ====================
+// (The notification styles are already in the style.css file)
+// But we need to ensure the notification class is applied correctly
 
 console.log('Expense Tracker fully loaded!');
